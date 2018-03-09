@@ -1,7 +1,7 @@
 //***************************************************************************************
-// BoxDemo.cpp by Frank Luna (C) 2011 All Rights Reserved.
+// SkullDemo.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //
-// Demonstrates rendering a colored box.
+// Demonstrates loading more complicated geometry from file and rendering it.
 //
 // Controls:
 //		Hold the left mouse button down and move the mouse to rotate.
@@ -10,23 +10,21 @@
 //***************************************************************************************
 
 #include "d3dApp.h"
-#include "d3dx11effect.h"
+#include "d3dx11Effect.h"
+#include "GeometryGenerator.h"
 #include "MathHelper.h"
-#include "D3DCompiler.h"
-
-using namespace DirectX::PackedVector;
-
+ 
 struct Vertex
 {
-	DirectX::XMFLOAT3 Pos;
-	DirectX::XMFLOAT4 Color;
+	XMFLOAT3 Pos;
+	XMFLOAT4 Color;
 };
 
-class BoxApp : public D3DApp
+class SkullApp : public D3DApp
 {
 public:
-	BoxApp(HINSTANCE hInstance);
-	~BoxApp();
+	SkullApp(HINSTANCE hInstance);
+	~SkullApp();
 
 	bool Init();
 	void OnResize();
@@ -43,8 +41,8 @@ private:
 	void BuildVertexLayout();
 
 private:
-	ID3D11Buffer* mBoxVB;
-	ID3D11Buffer* mBoxIB;
+	ID3D11Buffer* mVB;
+	ID3D11Buffer* mIB;
 
 	ID3DX11Effect* mFX;
 	ID3DX11EffectTechnique* mTech;
@@ -52,7 +50,13 @@ private:
 
 	ID3D11InputLayout* mInputLayout;
 
-	XMFLOAT4X4 mWorld;
+	ID3D11RasterizerState* mWireframeRS;
+
+	// Define transformations from local spaces to world space.
+	XMFLOAT4X4 mSkullWorld;
+
+	UINT mSkullIndexCount;
+
 	XMFLOAT4X4 mView;
 	XMFLOAT4X4 mProj;
 
@@ -71,7 +75,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	_CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
-	BoxApp theApp(hInstance);
+	SkullApp theApp(hInstance);
 	
 	if( !theApp.Init() )
 		return 0;
@@ -80,31 +84,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 }
  
 
-BoxApp::BoxApp(HINSTANCE hInstance)
-: D3DApp(hInstance), mBoxVB(0), mBoxIB(0), mFX(0), mTech(0),
-  mfxWorldViewProj(0), mInputLayout(0), 
-  mTheta(1.5f*MathHelper::Pi), mPhi(0.25f*MathHelper::Pi), mRadius(5.0f)
+SkullApp::SkullApp(HINSTANCE hInstance)
+: D3DApp(hInstance), mVB(0), mIB(0), mFX(0), mTech(0),
+  mfxWorldViewProj(0), mInputLayout(0), mWireframeRS(0), mSkullIndexCount(0),
+  mTheta(1.5f*MathHelper::Pi), mPhi(0.1f*MathHelper::Pi), mRadius(20.0f)
 {
-	mMainWndCaption = L"Box Demo";
+	mMainWndCaption = L"Skull Demo";
 	
 	mLastMousePos.x = 0;
 	mLastMousePos.y = 0;
 
 	XMMATRIX I = XMMatrixIdentity();
-	XMStoreFloat4x4(&mWorld, I);
 	XMStoreFloat4x4(&mView, I);
 	XMStoreFloat4x4(&mProj, I);
+
+	XMMATRIX T = XMMatrixTranslation(0.0f, -2.0f, 0.0f);
+	XMStoreFloat4x4(&mSkullWorld, T);
 }
 
-BoxApp::~BoxApp()
+SkullApp::~SkullApp()
 {
-	ReleaseCOM(mBoxVB);
-	ReleaseCOM(mBoxIB);
+	ReleaseCOM(mVB);
+	ReleaseCOM(mIB);
 	ReleaseCOM(mFX);
 	ReleaseCOM(mInputLayout);
+	ReleaseCOM(mWireframeRS);
 }
 
-bool BoxApp::Init()
+bool SkullApp::Init()
 {
 	if(!D3DApp::Init())
 		return false;
@@ -113,19 +120,27 @@ bool BoxApp::Init()
 	BuildFX();
 	BuildVertexLayout();
 
+	D3D11_RASTERIZER_DESC wireframeDesc;
+	ZeroMemory(&wireframeDesc, sizeof(D3D11_RASTERIZER_DESC));
+	wireframeDesc.FillMode = D3D11_FILL_WIREFRAME;
+	wireframeDesc.CullMode = D3D11_CULL_BACK;
+	wireframeDesc.FrontCounterClockwise = false;
+	wireframeDesc.DepthClipEnable = true;
+
+	HR(md3dDevice->CreateRasterizerState(&wireframeDesc, &mWireframeRS));
+
 	return true;
 }
 
-void BoxApp::OnResize()
+void SkullApp::OnResize()
 {
 	D3DApp::OnResize();
 
-	// The window resized, so update the aspect ratio and recompute the projection matrix.
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void BoxApp::UpdateScene(float dt)
+void SkullApp::UpdateScene(float dt)
 {
 	// Convert Spherical to Cartesian coordinates.
 	float x = mRadius*sinf(mPhi)*cosf(mTheta);
@@ -141,7 +156,7 @@ void BoxApp::UpdateScene(float dt)
 	XMStoreFloat4x4(&mView, V);
 }
 
-void BoxApp::DrawScene()
+void SkullApp::DrawScene()
 {
 	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView, reinterpret_cast<const float*>(&Colors::LightSteelBlue));
 	md3dImmediateContext->ClearDepthStencilView(mDepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -149,33 +164,34 @@ void BoxApp::DrawScene()
 	md3dImmediateContext->IASetInputLayout(mInputLayout);
     md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	md3dImmediateContext->RSSetState(mWireframeRS);
+ 
 	UINT stride = sizeof(Vertex);
     UINT offset = 0;
-    md3dImmediateContext->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
-	md3dImmediateContext->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
+    md3dImmediateContext->IASetVertexBuffers(0, 1, &mVB, &stride, &offset);
+	md3dImmediateContext->IASetIndexBuffer(mIB, DXGI_FORMAT_R32_UINT, 0);
 
 	// Set constants
-	XMMATRIX world = XMLoadFloat4x4(&mWorld);
+	
 	XMMATRIX view  = XMLoadFloat4x4(&mView);
 	XMMATRIX proj  = XMLoadFloat4x4(&mProj);
+	XMMATRIX world = XMLoadFloat4x4(&mSkullWorld);
 	XMMATRIX worldViewProj = world*view*proj;
-
+ 
 	mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
 
     D3DX11_TECHNIQUE_DESC techDesc;
     mTech->GetDesc( &techDesc );
     for(UINT p = 0; p < techDesc.Passes; ++p)
     {
-        mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
-        
-		// 36 indices for the box.
-		md3dImmediateContext->DrawIndexed(36, 0, 0);
+		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+		md3dImmediateContext->DrawIndexed(mSkullIndexCount, 0, 0);
     }
 
 	HR(mSwapChain->Present(0, 0));
 }
 
-void BoxApp::OnMouseDown(WPARAM btnState, int x, int y)
+void SkullApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -183,12 +199,12 @@ void BoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void BoxApp::OnMouseUp(WPARAM btnState, int x, int y)
+void SkullApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	ReleaseCapture();
 }
 
-void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
+void SkullApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if( (btnState & MK_LBUTTON) != 0 )
 	{
@@ -205,127 +221,111 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
 	}
 	else if( (btnState & MK_RBUTTON) != 0 )
 	{
-		// Make each pixel correspond to 0.005 unit in the scene.
-		float dx = 0.005f*static_cast<float>(x - mLastMousePos.x);
-		float dy = 0.005f*static_cast<float>(y - mLastMousePos.y);
+		// Make each pixel correspond to 0.2 unit in the scene.
+		float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
+		float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
 
 		// Update the camera radius based on input.
 		mRadius += dx - dy;
 
 		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
+		mRadius = MathHelper::Clamp(mRadius, 5.0f, 50.0f);
 	}
 
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
 }
-
-void BoxApp::BuildGeometryBuffers()
+ 
+void SkullApp::BuildGeometryBuffers()
 {
-	// Create vertex buffer
+	std::ifstream fin("Models/skull.txt");
+	
+	if(!fin)
+	{
+		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+		return;
+	}
 
-    Vertex vertices[] =
-    {  
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), (XMFLOAT4)Colors::White   },
-		{ XMFLOAT3(-1.0f, +1.0f, -1.0f), (XMFLOAT4)Colors::Black   },
-		{ XMFLOAT3(+1.0f, +1.0f, -1.0f), (XMFLOAT4)Colors::Red     },
-		{ XMFLOAT3(+1.0f, -1.0f, -1.0f), (XMFLOAT4)Colors::Green   },
-		{ XMFLOAT3(-1.0f, -1.0f, +1.0f), (XMFLOAT4)Colors::Blue    },
-		{ XMFLOAT3(-1.0f, +1.0f, +1.0f), (XMFLOAT4)Colors::Yellow  },
-		{ XMFLOAT3(+1.0f, +1.0f, +1.0f), (XMFLOAT4)Colors::Cyan    },
-		{ XMFLOAT3(+1.0f, -1.0f, +1.0f), (XMFLOAT4)Colors::Magenta }
-    };
+	UINT vcount = 0;
+	UINT tcount = 0;
+	std::string ignore;
+
+	fin >> ignore >> vcount;
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore;
+	
+	float nx, ny, nz;
+	XMFLOAT4 black(0.0f, 0.0f, 0.0f, 1.0f);
+
+	std::vector<Vertex> vertices(vcount);
+	for(UINT i = 0; i < vcount; ++i)
+	{
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+
+		vertices[i].Color = black;
+
+		// Normal not used in this demo.
+		fin >> nx >> ny >> nz;
+	}
+
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+
+	mSkullIndexCount = 3*tcount;
+	std::vector<UINT> indices(mSkullIndexCount);
+	for(UINT i = 0; i < tcount; ++i)
+	{
+		fin >> indices[i*3+0] >> indices[i*3+1] >> indices[i*3+2];
+	}
+
+	fin.close();
 
     D3D11_BUFFER_DESC vbd;
     vbd.Usage = D3D11_USAGE_IMMUTABLE;
-    vbd.ByteWidth = sizeof(Vertex) * 8;
+	vbd.ByteWidth = sizeof(Vertex) * vcount;
     vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbd.CPUAccessFlags = 0;
     vbd.MiscFlags = 0;
-	vbd.StructureByteStride = 0;
     D3D11_SUBRESOURCE_DATA vinitData;
-    vinitData.pSysMem = vertices;
-    HR(md3dDevice->CreateBuffer(&vbd, &vinitData, &mBoxVB));
+    vinitData.pSysMem = &vertices[0];
+    HR(md3dDevice->CreateBuffer(&vbd, &vinitData, &mVB));
 
-
-	// Create the index buffer
-
-	UINT indices[] = {
-		// front face
-		0, 1, 2,
-		0, 2, 3,
-
-		// back face
-		4, 6, 5,
-		4, 7, 6,
-
-		// left face
-		4, 5, 1,
-		4, 1, 0,
-
-		// right face
-		3, 2, 6,
-		3, 6, 7,
-
-		// top face
-		1, 5, 6,
-		1, 6, 2,
-
-		// bottom face
-		4, 0, 3, 
-		4, 3, 7
-	};
+	//
+	// Pack the indices of all the meshes into one index buffer.
+	//
 
 	D3D11_BUFFER_DESC ibd;
     ibd.Usage = D3D11_USAGE_IMMUTABLE;
-    ibd.ByteWidth = sizeof(UINT) * 36;
+	ibd.ByteWidth = sizeof(UINT) * mSkullIndexCount;
     ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
     ibd.CPUAccessFlags = 0;
     ibd.MiscFlags = 0;
-	ibd.StructureByteStride = 0;
     D3D11_SUBRESOURCE_DATA iinitData;
-    iinitData.pSysMem = indices;
-    HR(md3dDevice->CreateBuffer(&ibd, &iinitData, &mBoxIB));
+	iinitData.pSysMem = &indices[0];
+    HR(md3dDevice->CreateBuffer(&ibd, &iinitData, &mIB));
 }
  
-void BoxApp::BuildFX()
+void SkullApp::BuildFX()
 {
-	DWORD shaderFlags = 0;
-#if defined( DEBUG ) || defined( _DEBUG )
-    shaderFlags |= D3D10_SHADER_DEBUG;
-	shaderFlags |= D3D10_SHADER_SKIP_OPTIMIZATION;
-#endif
- 
-	//下面就是编译着色器，并获取ID3DX11EffectTechnique，为下面的创建输入布局等做准备
-	ID3D10Blob* compiledShader = 0;
-	ID3D10Blob* compilationMsgs = 0;
-	HRESULT hr = D3DCompileFromFile(L"FX/color.fx", 0, 0, 0,"fx_5_0", shaderFlags, 
-		 0, &compiledShader, &compilationMsgs);
+	std::ifstream fin("fx/color.fxo", std::ios::binary);
 
-	// compilationMsgs can store errors or warnings.
-	if( compilationMsgs != 0 )
-	{
-		MessageBoxA(0, (char*)compilationMsgs->GetBufferPointer(), 0, 0);
-		ReleaseCOM(compilationMsgs);
-	}
+	fin.seekg(0, std::ios_base::end);
+	int size = (int)fin.tellg();
+	fin.seekg(0, std::ios_base::beg);
+	std::vector<char> compiledShader(size);
 
-	// Even if there are no compilationMsgs, check to make sure there were no other errors.
-	if(FAILED(hr))
-	{
-		//DXTrace(__FILEW__, (DWORD)__LINE__, hr, L"D3DX11CompileFromFile", true);
-	}
-
-	HR(D3DX11CreateEffectFromMemory(compiledShader->GetBufferPointer(), compiledShader->GetBufferSize(), 
+	fin.read(&compiledShader[0], size);
+	fin.close();
+	
+	HR(D3DX11CreateEffectFromMemory(&compiledShader[0], size, 
 		0, md3dDevice, &mFX));
-
-	// Done with compiled shader.
-	ReleaseCOM(compiledShader);
 
 	mTech    = mFX->GetTechniqueByName("ColorTech");
 	mfxWorldViewProj = mFX->GetVariableByName("gWorldViewProj")->AsMatrix();
 }
 
-void BoxApp::BuildVertexLayout()
+void SkullApp::BuildVertexLayout()
 {
 	// Create the vertex input layout.
 	D3D11_INPUT_ELEMENT_DESC vertexDesc[] =
@@ -340,4 +340,3 @@ void BoxApp::BuildVertexLayout()
 	HR(md3dDevice->CreateInputLayout(vertexDesc, 2, passDesc.pIAInputSignature, 
 		passDesc.IAInputSignatureSize, &mInputLayout));
 }
- 
