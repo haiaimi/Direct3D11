@@ -1,0 +1,16 @@
+﻿  fxc compile for debug: D:\vs项目\Direct3D11\Direct3D Learing\Chapter 6 Drawing in Direct3D\Box\FX\color.fx
+  Microsoft (R) Direct3D Shader Compiler 10.1
+  Copyright (C) 2013 Microsoft. All rights reserved.
+  
+CUSTOMBUILD : warning X4717: Effects deprecated for D3DCompiler_47
+  
+  compilation code save succeeded; see color.cod
+  compilation object save succeeded; see D:\vs椤圭洰\Direct3D11\Direct3D Learing\Chapter 6 Drawing in Direct3D\Box\FX\color.fxo
+  BoxDemo.cpp
+  MathHelper.cpp
+  GeometryGenerator.cpp
+  GameTimer.cpp
+  d3dUtil.cpp
+  d3dApp.cpp
+  正在生成代码...
+  Box.vcxproj -> D:\vs项目\Direct3D11\Direct3D Learing\Chapter 6 Drawing in Direct3D\Box\Debug\Box.exe
