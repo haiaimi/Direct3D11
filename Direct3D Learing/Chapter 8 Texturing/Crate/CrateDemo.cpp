@@ -17,7 +17,9 @@
 #include "Effects.h"
 #include "Vertex.h"
 #include "DDSTextureLoader.h"
+#include <string>
 
+static const float PerFrameTime = 0.03333f;
 using namespace DirectX;
 class CrateApp : public D3DApp
 {
@@ -41,7 +43,8 @@ private:
 	ID3D11Buffer* mBoxVB;
 	ID3D11Buffer* mBoxIB;
 
-	ID3D11ShaderResourceView* mDiffuseMapSRV;
+	ID3D11ShaderResourceView* mDiffuseMapSRV[120] = { nullptr };
+	ID3D11ShaderResourceView* mDiffuseMapSRV1;
 
 	DirectionalLight mDirLights[3];
 	Material mBoxMat;
@@ -61,6 +64,9 @@ private:
 	float mTheta;
 	float mPhi;
 	float mRadius;
+	float RotateAngle = 0.f;
+	float FrameDel = 0.f;
+	int TexIndex = 0;
 
 	POINT mLastMousePos;
 };
@@ -83,7 +89,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
  
 
 CrateApp::CrateApp(HINSTANCE hInstance)
-: D3DApp(hInstance), mBoxVB(0), mBoxIB(0), mDiffuseMapSRV(0), mEyePosW(0.0f, 0.0f, 0.0f), 
+: D3DApp(hInstance), mBoxVB(0), mBoxIB(0), mEyePosW(0.0f, 0.0f, 0.0f), 
   mTheta(1.3f*MathHelper::Pi), mPhi(0.4f*MathHelper::Pi), mRadius(2.5f)
 {
 	mMainWndCaption = L"Crate Demo";
@@ -116,7 +122,8 @@ CrateApp::~CrateApp()
 {
 	ReleaseCOM(mBoxVB);
 	ReleaseCOM(mBoxIB);
-	ReleaseCOM(mDiffuseMapSRV);
+	for (int i = 0; i < 120; i++)
+		ReleaseCOM(mDiffuseMapSRV[i]);
 
 	Effects::DestroyAll();
 	InputLayouts::DestroyAll();
@@ -131,11 +138,56 @@ bool CrateApp::Init()
 	Effects::InitAll(md3dDevice);
 	InputLayouts::InitAll(md3dDevice);
 
-	HR(DirectX::CreateDDSTextureFromFile(md3dDevice, 
-								L"Textures/darkbrickdxt1.dds", 
+	//下面是用于贴图旋转
+	/*HR(DirectX::CreateDDSTextureFromFile(md3dDevice, 
+								L"Textures/flare.dds", 
 								nullptr, 
-								&mDiffuseMapSRV));
+								&mDiffuseMapSRV));*/
+
+	/*HR(DirectX::CreateDDSTextureFromFile(md3dDevice,
+								L"Textures/flarealpha.dds",
+								nullptr,
+								&mDiffuseMapSRV1));*/
  
+	//下面是读取一组贴图
+	for (int i = 1; i <= 120; i++)
+	{
+		char TexPath[50] = "Textures/FireAnim_DDS/Fire";
+		if (i >= 1 && i <= 9)
+		{
+			strcat(TexPath, "00");
+			char str[10];
+			sprintf_s(str, "%d.DDS", i);
+			strcat(TexPath, str);
+		}
+		if (i >= 10 && i <= 99)
+		{
+			strcat(TexPath, "0");
+			char str[10];
+			sprintf_s(str, "%d.DDS", i);
+			strcat(TexPath, str);
+		}
+		if (i >= 100)
+		{
+			char str[10];
+			sprintf_s(str, "%d.DDS", i);
+			strcat(TexPath, str);
+		}
+
+		//char数组转换成宽字符型
+		wchar_t *m_wchar;
+		int len = MultiByteToWideChar(CP_ACP, 0, TexPath, strlen(TexPath), NULL, 0);
+		m_wchar = new wchar_t[len + 1];
+		MultiByteToWideChar(CP_ACP, 0, TexPath, strlen(TexPath), m_wchar, len);
+		m_wchar[len] = '\0';
+
+		HR(DirectX::CreateDDSTextureFromFile(md3dDevice,
+										m_wchar,
+										nullptr,
+										&mDiffuseMapSRV[i - 1]));
+	}
+	mDiffuseMapSRV1 = mDiffuseMapSRV[0];
+	
 	BuildGeometryBuffers();
 
 	return true;
@@ -158,6 +210,11 @@ void CrateApp::UpdateScene(float dt)
 
 	mEyePosW = XMFLOAT3(x, y, z);
 
+	RotateAngle += dt * 1.f;
+	XMMATRIX TexRotate = XMMatrixRotationZ(RotateAngle);
+
+	//XMStoreFloat4x4(&mTexTransform, XMMatrixTranslation(-0.5f, -0.5f, 0.f)*TexRotate*XMMatrixTranslation(0.5f, 0.5f, 0.f));     //先向坐标系反方向移动0.5，最后在向正方向移动0.5
+
 	// Build the view matrix.
 	XMVECTOR pos    = XMVectorSet(x, y, z, 1.0f);
 	XMVECTOR target = XMVectorZero();
@@ -165,6 +222,17 @@ void CrateApp::UpdateScene(float dt)
 
 	XMMATRIX V = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&mView, V);
+
+	//下面是每秒30帧播放动画
+	FrameDel += dt;
+	if (FrameDel > PerFrameTime)
+	{
+		FrameDel = 0.f;
+		mDiffuseMapSRV1 = mDiffuseMapSRV[TexIndex];
+		TexIndex++;
+		if (TexIndex > 119)
+			TexIndex = 0;
+	}
 }
 
 void CrateApp::DrawScene()
@@ -205,7 +273,8 @@ void CrateApp::DrawScene()
 		Effects::BasicFX->SetWorldViewProj(worldViewProj);
 		Effects::BasicFX->SetTexTransform(XMLoadFloat4x4(&mTexTransform));
 		Effects::BasicFX->SetMaterial(mBoxMat);
-		Effects::BasicFX->SetDiffuseMap(mDiffuseMapSRV);
+		Effects::BasicFX->SetDiffuseMap(mDiffuseMapSRV1);
+		//Effects::BasicFX->SetDiffuseMap1(mDiffuseMapSRV1);
 
 		activeTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mBoxIndexCount, mBoxIndexOffset, mBoxVertexOffset);
@@ -289,9 +358,9 @@ void CrateApp::BuildGeometryBuffers()
 	UINT k = 0;
 	for(size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 	{
-		vertices[k].Pos    = box.Vertices[i].Position;
-		vertices[k].Normal = box.Vertices[i].Normal;
-		vertices[k].Tex    = box.Vertices[i].TexC;
+		vertices[k].Pos    = box.Vertices[i].Position;      //设置方块的顶点
+		vertices[k].Normal = box.Vertices[i].Normal;		//设置法线
+		vertices[k].Tex    = box.Vertices[i].TexC;			//设置纹理坐标
 	}
 
     D3D11_BUFFER_DESC vbd;

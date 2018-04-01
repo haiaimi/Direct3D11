@@ -27,11 +27,12 @@ cbuffer cbPerObject
 
 // Nonnumeric values cannot be added to a cbuffer.
 Texture2D gDiffuseMap;
+Texture2D gDiffuseMap1;
 
 SamplerState samAnisotropic
 {
 	Filter = ANISOTROPIC;
-	MaxAnisotropy = 4;
+	MaxAnisotropy = 16;
 
 	AddressU = WRAP;
 	AddressV = WRAP;
@@ -88,7 +89,8 @@ float4 PS(VertexOut pin, uniform int gLightCount, uniform bool gUseTexure) : SV_
     if(gUseTexure)
 	{
 		// Sample texture.
-		texColor = gDiffuseMap.Sample( samAnisotropic, pin.Tex );
+		texColor = gDiffuseMap.Sample(samAnisotropic, pin.Tex)
+			/** gDiffuseMap1.Sample(samAnisotropic, pin.Tex)*/;       //用于叠加贴图
 	}
 	 
 	//
@@ -107,6 +109,7 @@ float4 PS(VertexOut pin, uniform int gLightCount, uniform bool gUseTexure) : SV_
 		[unroll]
 		for(int i = 0; i < gLightCount; ++i)
 		{
+			//计算光照后该点的值
 			float4 A, D, S;
 			ComputeDirectionalLight(gMaterial, gDirLights[i], pin.NormalW, toEye, 
 				A, D, S);
