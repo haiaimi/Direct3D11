@@ -331,9 +331,12 @@ void MirrorApp::DrawScene()
 		md3dImmediateContext->Draw(6, 0);
 
 		// Wall
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::NoDepthWallDDS, 0);
 		Effects::BasicFX->SetDiffuseMap(mWallDiffuseMapSRV);
 		pass->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->Draw(18, 6);
+
+		md3dImmediateContext->OMSetDepthStencilState(0, 0);
 	}
 
 	//
@@ -363,6 +366,7 @@ void MirrorApp::DrawScene()
 
 	//
 	// Draw the mirror to stencil buffer only.
+	//这里只是单纯的设置镜面的位置，大小，没有赋予纹理
 	//
 
 	activeTech->GetDesc( &techDesc );
@@ -387,7 +391,7 @@ void MirrorApp::DrawScene()
 
 		// Render visible mirror pixels to stencil buffer.
 		// Do not write mirror depth to depth buffer at this point, otherwise it will occlude the reflection.
-		md3dImmediateContext->OMSetDepthStencilState(RenderStates::MarkMirrorDSS, 1);
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::MarkMirrorDSS, 1);    //这里的1是设置了模板缓冲的值（由于比较法使用了ALWAYS，所以该平面都是1）
 		
 		pass->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->Draw(6, 24);
@@ -410,8 +414,8 @@ void MirrorApp::DrawScene()
 		md3dImmediateContext->IASetIndexBuffer(mSkullIB, DXGI_FORMAT_R32_UINT, 0);
 
 		XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); // xy plane
-		XMMATRIX R = XMMatrixReflect(mirrorPlane);
-		XMMATRIX world = XMLoadFloat4x4(&mSkullWorld) * R;
+		XMMATRIX R = XMMatrixReflect(mirrorPlane);     //求取反射矩阵
+		XMMATRIX world = XMLoadFloat4x4(&mSkullWorld) * R;     //物体反射后的位置
 		XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world);
 		XMMATRIX worldViewProj = world*view*proj;
 
@@ -434,10 +438,11 @@ void MirrorApp::DrawScene()
 		Effects::BasicFX->SetDirLights(mDirLights);
 
 		// Cull clockwise triangles for reflection.
+		//由于是反射后的图形，所以图形的顶点和法线都会对称
 		md3dImmediateContext->RSSetState(RenderStates::CullClockwiseRS);
 
 		// Only draw reflection into visible mirror pixels as marked by the stencil buffer. 
-		md3dImmediateContext->OMSetDepthStencilState(RenderStates::DrawReflectionDSS, 1);
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::DrawReflectionDSS, 1);        //这里的1是渲染的区域是模板缓冲值为1的地方
 		pass->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mSkullIndexCount, 0, 0);
 
@@ -445,13 +450,78 @@ void MirrorApp::DrawScene()
 		md3dImmediateContext->RSSetState(0);	
 		md3dImmediateContext->OMSetDepthStencilState(0, 0);	
 
+		//Draw Shdaow Reflection
+		md3dImmediateContext->IASetVertexBuffers(0, 1, &mSkullVB, &stride, &offset);
+		md3dImmediateContext->IASetIndexBuffer(mSkullIB, DXGI_FORMAT_R32_UINT, 0);
+
+		XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // xz plane
+		XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
+		XMMATRIX S = XMMatrixShadow(shadowPlane, -XMLoadFloat3(&mDirLights[0].Direction));
+		world = XMLoadFloat4x4(&mSkullWorld) * R * S * shadowOffsetY;     //物体反射后的位置
+		worldInvTranspose = MathHelper::InverseTranspose(world);
+		worldViewProj = world * view * proj;
+
+		Effects::BasicFX->SetWorld(world);
+		Effects::BasicFX->SetWorldInvTranspose(worldInvTranspose);
+		Effects::BasicFX->SetWorldViewProj(worldViewProj);
+		Effects::BasicFX->SetMaterial(mShadowMat);
+
+		md3dImmediateContext->OMSetBlendState(RenderStates::TransparentBS, blendFactor, 0xffffffff);
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::DrawReflectionDSS, 1);
+		pass->Apply(0, md3dImmediateContext);
+		md3dImmediateContext->DrawIndexed(mSkullIndexCount, 0, 0);
+
+		// Restore default states.
+		md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xffffffff);
+		md3dImmediateContext->OMSetDepthStencilState(0, 0);
+
 		// Restore light directions.
-		for(int i = 0; i < 3; ++i)
+		for (int i = 0; i < 3; ++i)
 		{
 			mDirLights[i].Direction = oldLightDirections[i];
 		}
 
 		Effects::BasicFX->SetDirLights(mDirLights);
+	}
+
+	//Draw Floor Reflection
+	activeTech->GetDesc(&techDesc);
+	for (UINT p = 0; p < techDesc.Passes; ++p)
+	{
+		ID3DX11EffectPass* pass = activeTech->GetPassByIndex(p);
+
+		md3dImmediateContext->IASetVertexBuffers(0, 1, &mRoomVB, &stride, &offset);
+
+		// Set per object constants.
+		XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); // xy plane
+		XMMATRIX R = XMMatrixReflect(mirrorPlane);     //求取反射矩阵
+		XMMATRIX world = XMLoadFloat4x4(&mRoomWorld) * R;     //物体反射后的位置
+		XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world);
+		XMMATRIX worldViewProj = world * view*proj;
+
+		Effects::BasicFX->SetWorld(world);
+		Effects::BasicFX->SetWorldInvTranspose(worldInvTranspose);
+		Effects::BasicFX->SetWorldViewProj(worldViewProj);
+		Effects::BasicFX->SetTexTransform(XMMatrixIdentity());
+		Effects::BasicFX->SetMaterial(mRoomMat);
+		Effects::BasicFX->SetDiffuseMap(mFloorDiffuseMapSRV);
+
+		// Floor
+		md3dImmediateContext->RSSetState(RenderStates::CullClockwiseRS);
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::DrawReflectionDSS, 1);
+
+		// Cache the old light directions, and reflect the light directions.
+
+		Effects::BasicFX->SetDirLights(mDirLights);
+
+		pass->Apply(0, md3dImmediateContext);
+		md3dImmediateContext->Draw(6, 0);
+
+		md3dImmediateContext->RSSetState(0);
+		md3dImmediateContext->OMSetDepthStencilState(0, 0);
+		Effects::BasicFX->SetDirLights(mDirLights);
+
+
 	}
 
 	//
@@ -497,7 +567,7 @@ void MirrorApp::DrawScene()
 
 		XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // xz plane
 		XMVECTOR toMainLight = -XMLoadFloat3(&mDirLights[0].Direction);
-		XMMATRIX S =  XMMatrixShadow(shadowPlane, toMainLight);
+		XMMATRIX S =  XMMatrixShadow(shadowPlane, toMainLight);     //计算阴影矩阵
 		XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
 
 		// Set per object constants.
@@ -510,11 +580,9 @@ void MirrorApp::DrawScene()
 		Effects::BasicFX->SetWorldViewProj(worldViewProj);
 		Effects::BasicFX->SetMaterial(mShadowMat);
 
-		md3dImmediateContext->OMSetDepthStencilState(RenderStates::NoDoubleBlendDSS, 0);
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::NoDoubleBlendDSS, 0);     
 		pass->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mSkullIndexCount, 0, 0);
-
-		// Restore default states.
 		md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xffffffff);
 		md3dImmediateContext->OMSetDepthStencilState(0, 0);
 	}

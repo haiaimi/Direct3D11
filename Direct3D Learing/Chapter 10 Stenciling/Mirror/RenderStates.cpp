@@ -15,6 +15,7 @@ ID3D11BlendState*      RenderStates::NoRenderTargetWritesBS = 0;
 ID3D11DepthStencilState* RenderStates::MarkMirrorDSS     = 0;
 ID3D11DepthStencilState* RenderStates::DrawReflectionDSS = 0;
 ID3D11DepthStencilState* RenderStates::NoDoubleBlendDSS  = 0;
+ID3D11DepthStencilState* RenderStates::NoDepthWallDDS    = 0;
 
 void RenderStates::InitAll(ID3D11Device* device)
 {
@@ -53,7 +54,7 @@ void RenderStates::InitAll(ID3D11Device* device)
 	ZeroMemory(&cullClockwiseDesc, sizeof(D3D11_RASTERIZER_DESC));
 	cullClockwiseDesc.FillMode = D3D11_FILL_SOLID;
 	cullClockwiseDesc.CullMode = D3D11_CULL_BACK;
-	cullClockwiseDesc.FrontCounterClockwise = true;
+	cullClockwiseDesc.FrontCounterClockwise = true;        //允许正面逆时针渲染顶点，正常情况下是正面顺时针
 	cullClockwiseDesc.DepthClipEnable = true;
 
 	HR(device->CreateRasterizerState(&cullClockwiseDesc, &CullClockwiseRS));
@@ -128,7 +129,7 @@ void RenderStates::InitAll(ID3D11Device* device)
 	// We are not rendering backfacing polygons, so these settings do not matter.
     mirrorDesc.BackFace.StencilFailOp       = D3D11_STENCIL_OP_KEEP;
 	mirrorDesc.BackFace.StencilDepthFailOp  = D3D11_STENCIL_OP_KEEP;
-	mirrorDesc.BackFace.StencilPassOp       = D3D11_STENCIL_OP_REPLACE;
+	mirrorDesc.BackFace.StencilPassOp       = D3D11_STENCIL_OP_REPLACE;       //就是使用深度缓冲区的像素代替
 	mirrorDesc.BackFace.StencilFunc         = D3D11_COMPARISON_ALWAYS;
 
 	HR(device->CreateDepthStencilState(&mirrorDesc, &MarkMirrorDSS));
@@ -148,7 +149,7 @@ void RenderStates::InitAll(ID3D11Device* device)
 	drawReflectionDesc.FrontFace.StencilFailOp      = D3D11_STENCIL_OP_KEEP;
 	drawReflectionDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
 	drawReflectionDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	drawReflectionDesc.FrontFace.StencilFunc   = D3D11_COMPARISON_EQUAL;
+	drawReflectionDesc.FrontFace.StencilFunc   = D3D11_COMPARISON_EQUAL;       //只有在等于1的情况下才渲染（1是设置深度模板缓冲时确定）
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	drawReflectionDesc.BackFace.StencilFailOp      = D3D11_STENCIL_OP_KEEP;
@@ -172,7 +173,7 @@ void RenderStates::InitAll(ID3D11Device* device)
 
 	noDoubleBlendDesc.FrontFace.StencilFailOp      = D3D11_STENCIL_OP_KEEP;
 	noDoubleBlendDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-	noDoubleBlendDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_INCR;
+	noDoubleBlendDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_INCR;     //防止多重混合
 	noDoubleBlendDesc.FrontFace.StencilFunc   = D3D11_COMPARISON_EQUAL;
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
@@ -182,6 +183,17 @@ void RenderStates::InitAll(ID3D11Device* device)
 	noDoubleBlendDesc.BackFace.StencilFunc   = D3D11_COMPARISON_EQUAL;
 
 	HR(device->CreateDepthStencilState(&noDoubleBlendDesc, &NoDoubleBlendDSS));
+
+	//
+	// Wall
+	//
+	D3D11_DEPTH_STENCIL_DESC noDepthWallDesc;
+	noDepthWallDesc.DepthEnable      = false;
+	noDepthWallDesc.DepthWriteMask   = D3D11_DEPTH_WRITE_MASK_ALL;
+	noDepthWallDesc.DepthFunc        = D3D11_COMPARISON_LESS;
+	noDepthWallDesc.StencilEnable    = false;
+
+	device->CreateDepthStencilState(&noDepthWallDesc, &NoDepthWallDDS);
 }
 
 void RenderStates::DestroyAll()
