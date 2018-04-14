@@ -20,6 +20,10 @@ public:
 	 
 	static ID3D11BlendState* AlphaToCoverageBS;
 	static ID3D11BlendState* TransparentBS;
+	static ID3D11BlendState* BlotBS;
+
+	static ID3D11DepthStencilState* BlotDSS;
+	static ID3D11DepthStencilState* GlobalDDS;
 };
 
 #endif // RENDERSTATES_H

@@ -97,6 +97,8 @@ float4 PS(VertexOut pin, uniform int gLightCount, uniform bool gUseTexure, unifo
 			// early, thereby skipping the rest of the shader code.
 			clip(texColor.a - 0.1f);    //如果alpha小于0.1就舍弃该像素
 		}
+		/*if (texColor.r - 0.3f < 0 && texColor.g - 0.3f < 0 && texColor.b - 0.3f < 0)
+			clip(texColor.r - 0.1f);*/
 	}
 	 
 	//
@@ -134,8 +136,15 @@ float4 PS(VertexOut pin, uniform int gLightCount, uniform bool gUseTexure, unifo
 
 	if( gFogEnabled )
 	{
-		float fogLerp = saturate( (distToEye - gFogStart) / gFogRange ); 
+		/*float fogLerp;
+		if (distToEye == 160 || distToEye == 110 || distToEye == 60 || distToEye == 30)
+		{
+			fogLerp= saturate((distToEye - 10) / 200);
+		}
+		else
+			fogLerp = saturate( (distToEye - gFogStart) / gFogRange ); */
 
+		float fogLerp = saturate((distToEye - gFogStart) / gFogRange);
 		// Blend the fog color and the lit color.
 		litColor = lerp(litColor, gFogColor, fogLerp);
 	}
@@ -365,3 +374,13 @@ technique11 Light3TexAlphaClipFog
         SetPixelShader( CompileShader( ps_5_0, PS(3, true, true, true) ) ); 
     }
 }
+
+//technique Light3TexAlphaBlackClip
+//{
+//	pass p0
+//	{
+//		SetVertexShader( CompileShader( vs_5_0, VS() ) );
+//		SetGeometryShader( NULL );
+//		SetPixelShader(CompileShader( ps_5_0,ps())
+//	}
+//};

@@ -23,6 +23,8 @@
 #include "RenderStates.h"
 #include "Waves.h"
 
+static const float AnimFrameTime = 0.016666667f;
+
 enum RenderOptions
 {
 	Lighting = 0,
@@ -51,6 +53,7 @@ private:
 	void BuildLandGeometryBuffers();
 	void BuildWaveGeometryBuffers();
 	void BuildCrateGeometryBuffers();
+	void BuildCylinderGeometryBuffers();
 
 private:
 	ID3D11Buffer* mLandVB;
@@ -62,9 +65,14 @@ private:
 	ID3D11Buffer* mBoxVB;
 	ID3D11Buffer* mBoxIB;
 
+	ID3D11Buffer* mCylinderVB;
+	ID3D11Buffer* mCylinderIB;
+
 	ID3D11ShaderResourceView* mGrassMapSRV;
 	ID3D11ShaderResourceView* mWavesMapSRV;
 	ID3D11ShaderResourceView* mBoxMapSRV;
+	ID3D11ShaderResourceView* mCylinderSRV;
+	ID3D11ShaderResourceView* mCylinderSRVs[60]{ 0 };
 
 	Waves mWaves;
 
@@ -72,17 +80,20 @@ private:
 	Material mLandMat;
 	Material mWavesMat;
 	Material mBoxMat;
+	Material mCylinderMat;
 
 	XMFLOAT4X4 mGrassTexTransform;
 	XMFLOAT4X4 mWaterTexTransform;
 	XMFLOAT4X4 mLandWorld;
 	XMFLOAT4X4 mWavesWorld;
 	XMFLOAT4X4 mBoxWorld;
+	XMFLOAT4X4 mCylinderWorld;
 
 	XMFLOAT4X4 mView;
 	XMFLOAT4X4 mProj;
 
 	UINT mLandIndexCount;
+	UINT mCylinderIndexCount;
 
 	XMFLOAT2 mWaterTexOffset;
 
@@ -93,6 +104,9 @@ private:
 	float mTheta;
 	float mPhi;
 	float mRadius;
+
+	float AnimFrameDelTime = 0.f;
+	int CurTextureIndex = 0;
 
 	POINT mLastMousePos;
 };
@@ -115,7 +129,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
 BlendApp::BlendApp(HINSTANCE hInstance)
 : D3DApp(hInstance), mLandVB(0), mLandIB(0), mWavesVB(0), mWavesIB(0), mBoxVB(0), mBoxIB(0), mGrassMapSRV(0), mWavesMapSRV(0), mBoxMapSRV(0),
-  mWaterTexOffset(0.0f, 0.0f), mEyePosW(0.0f, 0.0f, 0.0f), mLandIndexCount(0), mRenderOptions(RenderOptions::TexturesAndFog),
+  mWaterTexOffset(0.0f, 0.0f), mEyePosW(0.0f, 0.0f, 0.0f), mLandIndexCount(0), mRenderOptions(RenderOptions::Textures),
   mTheta(1.3f*MathHelper::Pi), mPhi(0.4f*MathHelper::Pi), mRadius(80.0f)
 {
 	mMainWndCaption = L"Blend Demo";
@@ -133,6 +147,10 @@ BlendApp::BlendApp(HINSTANCE hInstance)
 	XMMATRIX boxScale = XMMatrixScaling(15.0f, 15.0f, 15.0f);
 	XMMATRIX boxOffset = XMMatrixTranslation(8.0f, 5.0f, -15.0f);
 	XMStoreFloat4x4(&mBoxWorld, boxScale*boxOffset);
+
+	XMMATRIX CylinderScale = XMMatrixScaling(2.f, 2.f, 2.f);
+	XMMATRIX CylinderOffset = XMMatrixTranslation(8.0f, 5.0f, -15.f);
+	XMStoreFloat4x4(&mCylinderWorld, CylinderScale*CylinderOffset);
 
 	XMMATRIX grassTexScale = XMMatrixScaling(5.0f, 5.0f, 0.0f);
 	XMStoreFloat4x4(&mGrassTexTransform, grassTexScale);
@@ -163,6 +181,10 @@ BlendApp::BlendApp(HINSTANCE hInstance)
 	mBoxMat.Ambient  = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 	mBoxMat.Diffuse  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	mBoxMat.Specular = XMFLOAT4(0.4f, 0.4f, 0.4f, 16.0f);
+
+	mCylinderMat.Ambient = XMFLOAT4(1.f, 1.f, 1.f, 1.0f);
+	mCylinderMat.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.9f);
+	mCylinderMat.Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 16.f);
 }
 
 BlendApp::~BlendApp()
@@ -202,11 +224,45 @@ bool BlendApp::Init()
 		L"Textures/water2.dds", nullptr, &mWavesMapSRV));
 
 	HR(CreateDDSTextureFromFile(md3dDevice,
-		L"Textures/WoodCrate01.dds", nullptr , &mBoxMapSRV));
+		L"Textures/WireFence.dds", nullptr , &mBoxMapSRV));
+
+	//下面是读取一组贴图
+	for (int i = 1; i <= 60; i++)
+	{
+		char TexPath[50] = "Textures/BoltAnim_DDS/Bolt";
+		if (i >= 1 && i <= 9)
+		{
+			strcat(TexPath, "00");
+			char str[10];
+			sprintf_s(str, "%d.DDS", i);
+			strcat(TexPath, str);
+		}
+		if (i >= 10 && i <= 99)
+		{
+			strcat(TexPath, "0");
+			char str[10];
+			sprintf_s(str, "%d.DDS", i);
+			strcat(TexPath, str);
+		}
+
+		//char数组转换成宽字符型
+		wchar_t *m_wchar;
+		int len = MultiByteToWideChar(CP_ACP, 0, TexPath, strlen(TexPath), NULL, 0);
+		m_wchar = new wchar_t[len + 1];
+		MultiByteToWideChar(CP_ACP, 0, TexPath, strlen(TexPath), m_wchar, len);
+		m_wchar[len] = '\0';
+
+		CreateDDSTextureFromFile(md3dDevice,
+			m_wchar,
+			nullptr,
+			&mCylinderSRVs[i - 1]);
+	}
+	mCylinderSRV = mCylinderSRVs[0];
 
 	BuildLandGeometryBuffers();
 	BuildWaveGeometryBuffers();
 	BuildCrateGeometryBuffers();
+	BuildCylinderGeometryBuffers();
 
 	return true;
 }
@@ -300,17 +356,28 @@ void BlendApp::UpdateScene(float dt)
 
 	if( GetAsyncKeyState('3') & 0x8000 )
 		mRenderOptions = RenderOptions::TexturesAndFog; 
+
+	if (AnimFrameDelTime > AnimFrameTime)
+	{
+		AnimFrameDelTime = 0.f;
+		CurTextureIndex++;
+		if (CurTextureIndex > 59)
+			CurTextureIndex = 0;
+		mCylinderSRV = mCylinderSRVs[CurTextureIndex];
+	}
+	AnimFrameDelTime += dt;
 }
 
 void BlendApp::DrawScene()
 {
-	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView, reinterpret_cast<const float*>(&Colors::Red));
+	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView, reinterpret_cast<const float*>(&Colors::Black));
 	md3dImmediateContext->ClearDepthStencilView(mDepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	md3dImmediateContext->IASetInputLayout(InputLayouts::Basic32);
     md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
  
-	float blendFactor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+	float blendFactor[] = {1.f, 1.f, 1.f, 1.f};
+	
 
 	UINT stride = sizeof(Vertex::Basic32);
     UINT offset = 0;
@@ -323,8 +390,8 @@ void BlendApp::DrawScene()
 	Effects::BasicFX->SetDirLights(mDirLights);
 	Effects::BasicFX->SetEyePosW(mEyePosW);
 	Effects::BasicFX->SetFogColor(Colors::Red);
-	Effects::BasicFX->SetFogStart(15.0f);
-	Effects::BasicFX->SetFogRange(175.0f);
+	Effects::BasicFX->SetFogStart(10.0f);
+	Effects::BasicFX->SetFogRange(200.0f);
  
 	ID3DX11EffectTechnique* boxTech;
 	ID3DX11EffectTechnique* landAndWavesTech;
@@ -354,27 +421,53 @@ void BlendApp::DrawScene()
 	boxTech->GetDesc( &techDesc );
 	for(UINT p = 0; p < techDesc.Passes; ++p)
     {
-		md3dImmediateContext->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
-		md3dImmediateContext->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
+		//md3dImmediateContext->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
+		//md3dImmediateContext->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
 
-		// Set per object constants.
-		XMMATRIX world = XMLoadFloat4x4(&mBoxWorld);
+		//// Set per object constants.
+		//XMMATRIX world = XMLoadFloat4x4(&mBoxWorld);
+		//world = world * XMMatrixTranslation(0.f, 20.f, 0.f);
+		//XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world);
+		//XMMATRIX worldViewProj = world*view*proj;
+		//
+		//Effects::BasicFX->SetWorld(world);
+		//Effects::BasicFX->SetWorldInvTranspose(worldInvTranspose);
+		//Effects::BasicFX->SetWorldViewProj(worldViewProj);
+		//Effects::BasicFX->SetTexTransform(XMMatrixIdentity());
+		//Effects::BasicFX->SetMaterial(mBoxMat);
+		//Effects::BasicFX->SetDiffuseMap(mBoxMapSRV);
+
+		//md3dImmediateContext->RSSetState(RenderStates::NoCullRS);
+		//boxTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+		//md3dImmediateContext->DrawIndexed(36, 0, 0);
+
+		// Restore default render state.
+
+		//Draw Cylinder
+		md3dImmediateContext->IASetVertexBuffers(0, 1, &mCylinderVB, &stride, &offset);
+		md3dImmediateContext->IASetIndexBuffer(mCylinderIB, DXGI_FORMAT_R32_UINT, 0);
+
+		XMMATRIX world = XMLoadFloat4x4(&mCylinderWorld); 
 		XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world);
-		XMMATRIX worldViewProj = world*view*proj;
+		XMMATRIX worldViewProj = world * view * proj;
 		
 		Effects::BasicFX->SetWorld(world);
 		Effects::BasicFX->SetWorldInvTranspose(worldInvTranspose);
 		Effects::BasicFX->SetWorldViewProj(worldViewProj);
 		Effects::BasicFX->SetTexTransform(XMMatrixIdentity());
-		Effects::BasicFX->SetMaterial(mBoxMat);
-		Effects::BasicFX->SetDiffuseMap(mBoxMapSRV);
+		Effects::BasicFX->SetDiffuseMap(mCylinderSRV);
+		Effects::BasicFX->SetMaterial(mCylinderMat);
 
+		md3dImmediateContext->OMSetDepthStencilState(RenderStates::BlotDSS, 0);
+		md3dImmediateContext->OMSetBlendState(RenderStates::BlotBS, blendFactor, 0xffffffff);
 		md3dImmediateContext->RSSetState(RenderStates::NoCullRS);
-		boxTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
-		md3dImmediateContext->DrawIndexed(36, 0, 0);
 
-		// Restore default render state.
+		boxTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+		md3dImmediateContext->DrawIndexed(mCylinderIndexCount, 0, 0);
+
 		md3dImmediateContext->RSSetState(0);
+		md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xffffffff);
+		md3dImmediateContext->OMSetDepthStencilState(0, 0);
 	}
 
 	//
@@ -402,6 +495,8 @@ void BlendApp::DrawScene()
 		Effects::BasicFX->SetMaterial(mLandMat);
 		Effects::BasicFX->SetDiffuseMap(mGrassMapSRV);
 
+		//md3dImmediateContext->OMSetDepthStencilState(RenderStates::GlobalDDS, 0);
+		md3dImmediateContext->OMSetBlendState(RenderStates::TransparentBS, blendFactor, 0xffffffff);
 		landAndWavesTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mLandIndexCount, 0, 0);
 
@@ -428,7 +523,9 @@ void BlendApp::DrawScene()
 		md3dImmediateContext->DrawIndexed(3*mWaves.TriangleCount(), 0, 0);
 
 		// Restore default blend state
-		md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xffffffff);
+		md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xffffffff);     //最多有32个采样，本实例只使用了1重采样，所以第一位必须为1，否则不会显示，如下
+		//md3dImmediateContext->OMSetBlendState(0, blendFactor, 0xfffffffe);
+		//md3dImmediateContext->OMSetDepthStencilState(0, 0);
     }
 
 	HR(mSwapChain->Present(0, 0));
@@ -644,4 +741,51 @@ void BlendApp::BuildCrateGeometryBuffers()
     D3D11_SUBRESOURCE_DATA iinitData;
     iinitData.pSysMem = &box.Indices[0];
     HR(md3dDevice->CreateBuffer(&ibd, &iinitData, &mBoxIB));
+}
+
+void BlendApp::BuildCylinderGeometryBuffers()
+{
+	GeometryGenerator::MeshData cylinder;
+	GeometryGenerator geoGen;
+
+	geoGen.CreateCylinder(5, 5, 5, 50, 10, cylinder, false);
+
+	//
+	// Extract the vertex elements we are interested in and pack the
+	// vertices of all the meshes into one vertex buffer.
+	//
+
+	std::vector<Vertex::Basic32> vertices(cylinder.Vertices.size());
+
+	for (UINT i = 0; i < cylinder.Vertices.size(); ++i)
+	{
+		vertices[i].Pos = cylinder.Vertices[i].Position;
+		vertices[i].Normal = cylinder.Vertices[i].Normal;
+		vertices[i].Tex = XMFLOAT2(cylinder.Vertices[i].TexC.x, cylinder.Vertices[i].TexC.y*1.5f);
+	}
+
+	D3D11_BUFFER_DESC vbd;
+	vbd.Usage = D3D11_USAGE_IMMUTABLE;
+	vbd.ByteWidth = sizeof(Vertex::Basic32) * cylinder.Vertices.size();
+	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vbd.CPUAccessFlags = 0;
+	vbd.MiscFlags = 0;
+	D3D11_SUBRESOURCE_DATA vinitData;
+	vinitData.pSysMem = &vertices[0];
+	HR(md3dDevice->CreateBuffer(&vbd, &vinitData, &mCylinderVB));
+
+	//
+	// Pack the indices of all the meshes into one index buffer.
+	//
+
+	mCylinderIndexCount = cylinder.Indices.size();
+	D3D11_BUFFER_DESC ibd;
+	ibd.Usage = D3D11_USAGE_IMMUTABLE;
+	ibd.ByteWidth = sizeof(UINT) * cylinder.Indices.size();
+	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	ibd.CPUAccessFlags = 0;
+	ibd.MiscFlags = 0;
+	D3D11_SUBRESOURCE_DATA iinitData;
+	iinitData.pSysMem = &cylinder.Indices[0];
+	HR(md3dDevice->CreateBuffer(&ibd, &iinitData, &mCylinderIB));
 }
