@@ -24,9 +24,6 @@
     <None Include="FX\LightHelper.fx">
       <Filter>FX</Filter>
     </None>
-    <None Include="FX\TreeSprite.fx">
-      <Filter>FX</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\d3dApp.cpp">
@@ -112,6 +109,9 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FX\Basic.fx">
+      <Filter>FX</Filter>
+    </CustomBuild>
+    <CustomBuild Include="FX\TreeSprite.fx">
       <Filter>FX</Filter>
     </CustomBuild>
   </ItemGroup>

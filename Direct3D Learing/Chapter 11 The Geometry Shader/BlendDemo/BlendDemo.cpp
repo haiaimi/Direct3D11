@@ -133,7 +133,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 }
 
 BlendApp::BlendApp(HINSTANCE hInstance)
-: D3DApp(hInstance), mLandVB(0), mLandIB(0), mWavesVB(0), mWavesIB(0), mBoxVB(0), mBoxIB(0), mGrassMapSRV(0), mWavesMapSRV(0), mBoxMapSRV(0),
+: D3DApp(hInstance), mLandVB(0), mLandIB(0), mWavesVB(0), mWavesIB(0), mBoxVB(0), mBoxIB(0), mGrassMapSRV(0), mWavesMapSRV(0), mBoxMapSRV(0),mTreeArraySRV(0),
   mWaterTexOffset(0.0f, 0.0f), mEyePosW(0.0f, 0.0f, 0.0f), mLandIndexCount(0), mRenderOptions(RenderOptions::Textures),
   mTheta(1.3f*MathHelper::Pi), mPhi(0.4f*MathHelper::Pi), mRadius(80.0f)
 {
@@ -201,6 +201,7 @@ BlendApp::~BlendApp()
 	ReleaseCOM(mWavesIB);
 	ReleaseCOM(mBoxVB);
 	ReleaseCOM(mBoxIB);
+	ReleaseCOM(mTreeArraySRV);
 	ReleaseCOM(mGrassMapSRV);
 	ReleaseCOM(mWavesMapSRV);
 	ReleaseCOM(mBoxMapSRV);
@@ -223,7 +224,7 @@ bool BlendApp::Init()
 	RenderStates::InitAll(md3dDevice);
 
 	HR(CreateDDSTextureFromFile(md3dDevice,
-		L"Texture/TreeArray.dds", nullptr, &mGrassMapSRV));
+		L"Textures/TreeArray.dds", nullptr, &mTreeArraySRV));
 
 	HR(CreateDDSTextureFromFile(md3dDevice, 
 		L"Textures/grass.dds", nullptr, &mGrassMapSRV));
@@ -271,6 +272,7 @@ bool BlendApp::Init()
 	BuildWaveGeometryBuffers();
 	BuildCrateGeometryBuffers();
 	BuildCylinderGeometryBuffers();
+	BuildTreeSpritePointBuffers();
 
 	return true;
 }
@@ -589,12 +591,13 @@ void BlendApp::DrawScene()
 	TreeSpriteTech->GetDesc(&techDesc);
 	for (UINT p = 0; p < techDesc.Passes; ++p)
 	{
-		md3dImmediateContext->IASetVertexBuffers(0, 0, &mTreeSpritesVB, &stride, &offset);
+		md3dImmediateContext->IASetVertexBuffers(0, 1, &mTreeSpritesVB, &stride, &offset);
 		md3dImmediateContext->IASetIndexBuffer(mTreeSpritesIB, DXGI_FORMAT_R32_UINT, 0);
 
 		Effects::TreeSpriteFX->SetTreeTextureMapArray(mTreeArraySRV);
+		Effects::TreeSpriteFX->SetMaterial(mBoxMat);
 		TreeSpriteTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
-		md3dImmediateContext->DrawIndexed(4, 0, 0);
+		md3dImmediateContext->DrawIndexed(6, 0, 0);
 	}
 
 	HR(mSwapChain->Present(0, 0));
@@ -863,21 +866,21 @@ void BlendApp::BuildTreeSpritePointBuffers()
 {
 	std::vector<Vertex::TreePointSprite> vertices(4);
 
-	vertices[0].Pos = XMFLOAT3(0.f, 10.f, 0.f);
-	vertices[0].Size = XMFLOAT2(5.f, 5.f);
+	vertices[0].Pos = XMFLOAT3(0.f, 8.f, 0.f);
+	vertices[0].Size = XMFLOAT2(10.f, 10.f);
 
-	vertices[1].Pos = XMFLOAT3(10.f, 10.f, 0.f);
-	vertices[1].Size = XMFLOAT2(5.f, 5.f);
+	vertices[1].Pos = XMFLOAT3(10.f, 8.f, 0.f);
+	vertices[1].Size = XMFLOAT2(10.f, 10.f);
 
-	vertices[2].Pos = XMFLOAT3(10.f, 10.f, 10.f);
-	vertices[2].Size = XMFLOAT2(5.f, 5.f);
+	vertices[2].Pos = XMFLOAT3(10.f, 8.f, 10.f);
+	vertices[2].Size = XMFLOAT2(10.f, 10.f);
 
-	vertices[3].Pos = XMFLOAT3(-10.f, 10.f, 10.f);
-	vertices[3].Size = XMFLOAT2(5.f, 5.f);
+	vertices[3].Pos = XMFLOAT3(-10.f, 8.f, 10.f);
+	vertices[3].Size = XMFLOAT2(10.f, 10.f);
 
 	D3D11_BUFFER_DESC vbd;
 	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex::Basic32) * vertices.size();
+	vbd.ByteWidth = sizeof(Vertex::TreePointSprite) * vertices.size();
 	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vbd.CPUAccessFlags = 0;
 	vbd.MiscFlags = 0;
@@ -885,11 +888,13 @@ void BlendApp::BuildTreeSpritePointBuffers()
 	vinitData.pSysMem = &vertices[0];
 	HR(md3dDevice->CreateBuffer(&vbd, &vinitData, &mTreeSpritesVB));
 
-	std::vector<UINT> indices(4);
+	std::vector<UINT> indices(6);
 	indices[0] = 0;
-	indices[1] = 1;
+	indices[1] = 3;
 	indices[2] = 2;
-	indices[3] = 3;
+	indices[3] = 2;
+	indices[4] = 1;
+	indices[5] = 0;
 
 	D3D11_BUFFER_DESC ibd;
 	ibd.Usage = D3D11_USAGE_IMMUTABLE;
