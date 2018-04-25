@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2020
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LiftSimulation", "LiftSimulation\LiftSimulation.vcxproj", "{36D04125-5624-41C5-A79B-B57F3FDBDD74}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Debug|x64.ActiveCfg = Debug|x64
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Debug|x64.Build.0 = Debug|x64
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Debug|x86.ActiveCfg = Debug|Win32
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Debug|x86.Build.0 = Debug|Win32
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Release|x64.ActiveCfg = Release|x64
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Release|x64.Build.0 = Release|x64
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Release|x86.ActiveCfg = Release|Win32
+		{36D04125-5624-41C5-A79B-B57F3FDBDD74}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {98EAA974-8AF7-491A-8CA1-4DC69D52A1ED}
+	EndGlobalSection
+EndGlobal
