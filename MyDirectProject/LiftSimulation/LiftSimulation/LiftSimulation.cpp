@@ -1,6 +1,8 @@
 #include "LiftSimulation.h"
 #include <d3d11.h>
 #include "MathHelper.h"
+#include "DDSTextureLoader.h"
+#include <stdlib.h>
 
 LiftApp* gLiftApp = nullptr;
 
@@ -29,7 +31,11 @@ LiftApp::LiftApp(HINSTANCE hInstance) :
 	mFX(nullptr),
 	mTech(nullptr),
 	mInputLayout(nullptr),
-	mEyePosW(0.f,0.f,0.f)
+	mEyePosW(0.f,0.f,0.f),
+	mliftSRV(nullptr),
+	mWallSRV(nullptr),
+	mfxDiffuseMap(nullptr),
+	mfxTexTransform(nullptr)
 {
 	//初始化Viewport结构
 	memset(&mScreenViewport, 0, sizeof(D3D11_VIEWPORT));
@@ -40,14 +46,17 @@ LiftApp::LiftApp(HINSTANCE hInstance) :
 	XMStoreFloat4x4(&mWorld, I);
 	XMStoreFloat4x4(&mView, I);
 	XMStoreFloat4x4(&mProj, I);
+	XMStoreFloat4x4(&mTexTransform, I);
 
 	liftHeight = 0.f;
+	dstHeight = 0.f;
 	moveSpeed = 10.f;
-	bCanMove = true;
+	bCanMove = false;
 }
 
 LiftApp::~LiftApp()
 {
+	//析构函数，清理内存，以免造成内存泄漏
 	ReleaseCOM(mSwapChain);
 	ReleaseCOM(mDepthStencilBuffer);
 	ReleaseCOM(mRenderTargetView);
@@ -59,9 +68,12 @@ LiftApp::~LiftApp()
 	ReleaseCOM(md3dDevice);
 	ReleaseCOM(md3dImmediateContext);
 	ReleaseCOM(mFX);
+	//ReleaseCOM(mTech);
 	ReleaseCOM(mBoxIB);
 	ReleaseCOM(mBoxVB);
 	ReleaseCOM(mInputLayout);
+	ReleaseCOM(mliftSRV);
+	ReleaseCOM(mWallSRV);
 }
 
 int LiftApp::Run()
@@ -70,6 +82,7 @@ int LiftApp::Run()
 
 	mTimer.Reset();
 
+	//游戏主循环
 	while (msg.message != WM_QUIT)
 	{
 		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
@@ -118,13 +131,18 @@ bool LiftApp::Init()
 	mSpotLight.Range = 10000.0f;
 
 	//方块的材质
-	mBoxMat.Ambient = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
-	mBoxMat.Diffuse = XMFLOAT4(0.7f, 0.77f, 0.46f, 1.0f);
-	mBoxMat.Specular = XMFLOAT4(1.f, 0.2f, 0.2f, 26.0f);
+	mBoxMat.Ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+	mBoxMat.Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	mBoxMat.Specular = XMFLOAT4(0.6f, 0.6f, 0.6f, 16.0f);
 
-	BuildBoxBuffer();
-	BuildFX();
-	SetInputLayout();
+	//创建纹理资源，这里直接使用DDS，为了提高利率，微软已经开源该库，见DDSTextureLoader.h
+	DirectX::CreateDDSTextureFromFile(md3dDevice, L"Texture/checkboard.dds", nullptr, &mliftSRV);
+	DirectX::CreateDDSTextureFromFile(md3dDevice, L"Texture/brick01.dds", nullptr, &mWallSRV);
+
+	BuildBoxBuffer();      //创建方块顶点、索引缓冲
+	BuildFX();       //创建着色器
+	SetInputLayout();     //创建输入布局
+
 
 	//初始化成功
 	return true;
@@ -134,6 +152,7 @@ LRESULT LiftApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
+	//窗口激活
 	case WM_ACTIVATE:
 		if (LOWORD(wParam) == WA_INACTIVE)
 		{
@@ -150,6 +169,7 @@ LRESULT LiftApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		return 0;
 	}
+
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
@@ -181,6 +201,7 @@ bool LiftApp::InitMainWindow()
 	int width = R.right - R.left;
 	int height = R.bottom - R.top;
 
+	//创建窗口
 	mhMainWnd = CreateWindow(L"LiftWndClassName", mWndCaption.c_str(), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0);
 
 	if (!mhMainWnd)
@@ -190,6 +211,7 @@ bool LiftApp::InitMainWindow()
 
 	ShowWindow(mhMainWnd, SW_SHOW);
 	UpdateWindow(mhMainWnd);
+	SetWindowText(mhMainWnd, L"LiftSimulation  按'1'：1楼,      按'2'：2楼,      按'3'：3楼,       按'4'：4楼");       //显示操作方法
 
 	return true;
 }
@@ -221,19 +243,21 @@ bool LiftApp::InitDirect3D()
 		return false;
 	}
 
+	md3dDevice->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM, 4, &m4xMsaaQuality);   //获取该设备支持多重采样等级
+
 	//交换链初始化结构
 	DXGI_SWAP_CHAIN_DESC sd;
 	sd.BufferDesc.Width = mClientWidth;
 	sd.BufferDesc.Height = mClientHeight;
 	sd.BufferDesc.RefreshRate.Numerator = 60; //刷新率
 	sd.BufferDesc.RefreshRate.Denominator = 1;
-	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;       //缓冲区像素格式
 	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
 	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-	sd.SampleDesc.Count = 1;   //不使用多重采样抗锯齿
-	sd.SampleDesc.Quality = 0;
+	sd.SampleDesc.Count = 4;   //使用多重采样抗锯齿，不然效果太差
+	sd.SampleDesc.Quality = m4xMsaaQuality - 1;
 	sd.BufferUsage  = DXGI_USAGE_RENDER_TARGET_OUTPUT;    //用于渲染目标
-	sd.BufferCount = 1;    //缓冲区数目，正常指定一个
+	sd.BufferCount = 1;        //缓冲区数目，正常指定一个
 	sd.OutputWindow = mhMainWnd;    //指定输出窗口
 	sd.Windowed     = true;
 	sd.SwapEffect   = DXGI_SWAP_EFFECT_DISCARD;
@@ -245,7 +269,6 @@ bool LiftApp::InitDirect3D()
 
 	IDXGIAdapter* dxgiAdapter = 0;
 	dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter);
-
 
 	IDXGIFactory* dxgiFactory = 0;
 	dxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&dxgiFactory);
@@ -269,13 +292,14 @@ bool LiftApp::InitDirect3D()
 	depthStencilDesc.ArraySize = 1;
 	depthStencilDesc.Format    = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.SampleDesc.Count = 4;
+	depthStencilDesc.SampleDesc.Quality = m4xMsaaQuality - 1;
 	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
 	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 	depthStencilDesc.CPUAccessFlags = 0;
 	depthStencilDesc.MiscFlags = 0;
 
+	//先创建Texture2D缓冲区，然后把深度模板缓冲绑定到上面
 	md3dDevice->CreateTexture2D(&depthStencilDesc, 0, &mDepthStencilBuffer);
 	md3dDevice->CreateDepthStencilView(mDepthStencilBuffer, 0, &mDepthStencilView);
 
@@ -297,82 +321,179 @@ bool LiftApp::InitDirect3D()
 
 void LiftApp::UpdateScene(float dt)
 {
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, static_cast<float>(mClientWidth / mClientHeight), 1.0f, 1000.0f);
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, static_cast<float>(mClientWidth / mClientHeight), 1.0f, 1000.0f);       //创建投影矩阵
 	XMStoreFloat4x4(&mProj, P);
 
 	mEyePosW = XMFLOAT3(20.f, 0.f, 20.f);
-	XMVECTOR pos = XMVectorSet(50.f, 10.f, 20.f, 1.f);
+	XMVECTOR pos = XMVectorSet(60.f, 20.f, 20.f, 1.f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up = XMVectorSet(0.f, 1.f, 0.f, 0.f);
 
-	XMMATRIX V = XMMatrixLookAtLH(pos, target, up);
+	XMMATRIX V = XMMatrixLookAtLH(pos, target, up);      //创建观察矩阵
 	XMStoreFloat4x4(&mView, V);       //获取观察矩阵
 
-	liftHeight += dt * moveSpeed;
-	if (liftHeight > 40.f)
+	if (GetAsyncKeyState('1') & 0x8000)
 	{
-		liftHeight = 40.f;
-		moveSpeed = -moveSpeed;
-	}
-	else if (liftHeight < 0.f)
-	{
-		liftHeight = 0.f;
-		moveSpeed = -moveSpeed;
+		dstHeight = 0.f;
+		if ((dstHeight - liftHeight) != 0)
+		{
+			bCanMove = true;
+			if ((dstHeight - liftHeight) < 0)
+				moveSpeed = -10.f;
+			else
+				moveSpeed = 10.f;
+		}
 	}
 
+	if (GetAsyncKeyState('2') & 0x8000)
+	{
+		dstHeight = 10.f;
+		if ((dstHeight - liftHeight) != 0)
+		{
+			bCanMove = true;
+			if ((dstHeight - liftHeight) < 0)
+				moveSpeed = -10.f;
+			else
+				moveSpeed = 10.f;
+		}
+	}
+
+	if (GetAsyncKeyState('3') & 0x8000)
+	{
+		dstHeight = 20.f;
+		if ((dstHeight - liftHeight) != 0)
+		{
+			bCanMove = true;
+			if ((dstHeight - liftHeight) < 0)
+				moveSpeed = -10.f;
+			else
+				moveSpeed = 10.f;
+		}
+	}
+
+	if (GetAsyncKeyState('4') & 0x8000)
+	{
+		dstHeight = 30.f;
+		if ((dstHeight - liftHeight) != 0)
+		{
+			bCanMove = true;
+			if ((dstHeight - liftHeight) < 0)
+				moveSpeed = -10.f;
+			else
+				moveSpeed = 10.f;
+		}
+	}
+
+	//下面就是电梯移动高度变化
+	if (bCanMove)
+	{
+		liftHeight += dt * moveSpeed;
+		if (moveSpeed > 0 && (liftHeight - dstHeight) >= 0)
+		{
+			liftHeight = dstHeight;
+			bCanMove = false;
+		}
+		else if (moveSpeed < 0 && (liftHeight - dstHeight) <= 0)
+		{
+			liftHeight = dstHeight;
+			bCanMove = false;
+		}
+	}
 }
 
 void LiftApp::DrawScene()
 {
-	XMVECTORF32 Cyan = { 0.0f, 1.0f, 1.0f, 1.0f };
-	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView, reinterpret_cast<const FLOAT*>(&Cyan));
+	XMVECTORF32 backGround = { 0.75f, 0.75f, 0.75f, 1.0f };       //背景色
+	md3dImmediateContext->ClearRenderTargetView(mRenderTargetView, reinterpret_cast<const FLOAT*>(&backGround));
 	md3dImmediateContext->ClearDepthStencilView(mDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);      //清理RenderTarget和深度模板缓冲进行绘制下一帧
 	
 	md3dImmediateContext->IASetInputLayout(mInputLayout);
 	md3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);   //绘制的基本图元为三角形
 
-	UINT stride = sizeof(Vertex);
+	UINT stride = sizeof(Vertex);   //顶点结构的大小
 	UINT offset = 0;
-	md3dImmediateContext->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);
-	md3dImmediateContext->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);
+	md3dImmediateContext->IASetVertexBuffers(0, 1, &mBoxVB, &stride, &offset);    //设置顶点缓冲
+	md3dImmediateContext->IASetIndexBuffer(mBoxIB, DXGI_FORMAT_R32_UINT, 0);       //设置索引缓冲
 
 	XMMATRIX world = XMLoadFloat4x4(&mWorld);
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
+	//为效果文件缓冲区变量设置参数,这里是三个光源的参数
 	mfxDirLight->SetRawValue(&mDirLight, 0, sizeof(mDirLight));
 	mfxPointLight->SetRawValue(&mPointLight, 0, sizeof(mPointLight));
 	mfxSpotLight->SetRawValue(&mSpotLight, 0, sizeof(mSpotLight));
 	
+	//下面就是渲染部分
 	D3DX11_TECHNIQUE_DESC techDesc;
 	mTech->GetDesc(&techDesc);
 	for (UINT p = 0; p < techDesc.Passes; ++p)
 	{
+		///绘制电梯部分
 		XMMATRIX scale = XMMatrixScaling(10.f, 2.f, 10.f);      //方块尺寸
 		mfxEyePosW->SetRawValue(&mEyePosW, 0, sizeof(mEyePosW));
-		XMMATRIX offset = XMMatrixTranslation(0.f, liftHeight-20.f, 0.f);
-
+		XMMATRIX offset = XMMatrixTranslation(-0.1f, liftHeight - 19.999f, 0.f);
 		XMMATRIX worldViewProj = world * scale * offset * view * proj;     //获取当前世界观察矩阵， 这里一定要注意相乘的顺序，scale一定要在offset前面
-		
-		XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world);   //保持网格因为Scale变化造成发现异常
+		XMMATRIX worldInvTranspose = MathHelper::InverseTranspose(world*scale);   //保持网格因为Scale变化造成发现异常
 
+		//同样是设置着色器里的缓冲区参数
 		mfxWorld->SetMatrix(reinterpret_cast<float*>(&world));
 		mfxWorldInvTranspose->SetMatrix(reinterpret_cast<float*>(&worldInvTranspose));
 		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
 		mfxMaterial->SetRawValue(&mBoxMat, 0, sizeof(mBoxMat));
+		mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(2.f,2.f,0.f)));   //调整纹理大小，以免导致拉伸
+		mfxDiffuseMap->SetResource(mliftSRV);  //设置纹理
 
 		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
-
 		md3dImmediateContext->DrawIndexed(36, 0, 0);
 
+		///绘制底部平台
+		mfxDiffuseMap->SetResource(mWallSRV);
+		mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(1.f, 1.f, 0.f)));
 		offset = XMMatrixTranslation(0.f, - 20.f, 0.f);
 		worldViewProj = world * scale * offset * view * proj;
 		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
 		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
 		md3dImmediateContext->DrawIndexed(36, 0, 0);
 
-		scale = XMMatrixScaling(10.f, 40.f, 2.f);
-		offset = XMMatrixTranslation(0.f, 0.f, -5.f);
+		///绘制旁边的楼层
+		for (int i = 0; i < 4; i++)
+		{
+			mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(1.f, 1.f, 0.f)));
+			offset = XMMatrixTranslation(0.f, -20.f + 10 * i, 10.f);
+			worldViewProj = world * scale * offset * view * proj;
+			mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
+			mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
+			md3dImmediateContext->DrawIndexed(36, 0, 0);
+		}
+
+		///绘制两侧的墙
+		mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(2.f,3.f,0.f)));     //调整纹理大小，以免导致拉伸
+		scale = XMMatrixScaling(10.f, 40.f, 1.f);
+		offset = XMMatrixTranslation(0.f, -1.f, -5.f);
+		worldViewProj = world * scale * offset * view * proj;
+		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
+		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
+		md3dImmediateContext->DrawIndexed(36, 0, 0);
+
+		offset = XMMatrixTranslation(0.f, -1.f, 15.f);
+		worldViewProj = world * scale * offset * view * proj;
+		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
+		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
+		md3dImmediateContext->DrawIndexed(36, 0, 0);
+		
+		///绘制背面墙
+		mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(2.f, 3.f, 0.f)));     //调整纹理大小，以免导致拉伸
+		scale = XMMatrixScaling(1.f, 40.f, 10.f);
+		offset = XMMatrixTranslation(-5.f, -1.f, 0.f);
+		worldViewProj = world * scale * offset * view * proj;
+		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
+		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
+		md3dImmediateContext->DrawIndexed(36, 0, 0);
+
+		mfxTexTransform->SetMatrix(reinterpret_cast<const float*>(&XMMatrixScaling(2.f, 3.f, 0.f)));     //调整纹理大小，以免导致拉伸
+		scale = XMMatrixScaling(1.f, 40.f, 10.f);
+		offset = XMMatrixTranslation(-5.f, -1.f, 10.f);
 		worldViewProj = world * scale * offset * view * proj;
 		mfxWorldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
 		mTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);    //这里一定要Apply这样才能绘制新的图形
@@ -492,16 +613,20 @@ void LiftApp::BuildFX()
 	mfxWorldViewProj = mFX->GetVariableByName("gWorldViewProj")->AsMatrix(); //从效果文件中获取矩阵变量
 	mfxWorld = mFX->GetVariableByName("gWorld")->AsMatrix();     //获取world变量
 	mfxWorldInvTranspose = mFX->GetVariableByName("gWorldInvTranspose")->AsMatrix(); 
+	mfxTexTransform = mFX->GetVariableByName("gTexTransform")->AsMatrix();
+
 	//获取光线变量
 	mfxEyePosW = mFX->GetVariableByName("gEyePosW")->AsVector();
 	mfxDirLight = mFX->GetVariableByName("gDirLight");
 	mfxPointLight = mFX->GetVariableByName("gPointLight");
 	mfxSpotLight = mFX->GetVariableByName("gSpotLight");
 	mfxMaterial = mFX->GetVariableByName("gMaterial");
+	mfxDiffuseMap = mFX->GetVariableByName("gDiffuseMap")->AsShaderResource();
 }
 
 void LiftApp::SetInputLayout()
 {
+	//设置布局参数
 	D3D11_INPUT_ELEMENT_DESC descs[3]=
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
