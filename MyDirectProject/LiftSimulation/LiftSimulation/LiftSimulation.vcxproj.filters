@@ -36,6 +36,9 @@
     <ClInclude Include="..\D3DHelper\MathHelper.h">
       <Filter>D3DHelper</Filter>
     </ClInclude>
+    <ClInclude Include="..\D3DHelper\DDSTextureLoader.h">
+      <Filter>D3DHelper</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LiftSimulation.cpp">
@@ -48,6 +51,9 @@
       <Filter>D3DHelper</Filter>
     </ClCompile>
     <ClCompile Include="..\D3DHelper\MathHelper.cpp">
+      <Filter>D3DHelper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\D3DHelper\DDSTextureLoader.cpp">
       <Filter>D3DHelper</Filter>
     </ClCompile>
   </ItemGroup>

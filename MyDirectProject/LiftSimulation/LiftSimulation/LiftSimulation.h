@@ -75,7 +75,7 @@ protected:
 	HINSTANCE mhAppInst;
 	HWND mhMainWnd;
 
-	GameTimer mTimer; //游戏计时器
+	GameTimer mTimer; //游戏计时器，使用了开源代码，见GameTimer
 
 	ID3D11Device* md3dDevice;     //设备指针
 	ID3D11DeviceContext* md3dImmediateContext;    //设备上下文
@@ -91,19 +91,24 @@ protected:
 
 	ID3DX11EffectTechnique* mTech;
 	ID3DX11EffectMatrixVariable* mfxWorldViewProj;   //用于Shader中的世界观察投影机矩阵
-	ID3DX11EffectMatrixVariable* mfxWorld;
-	ID3DX11EffectMatrixVariable* mfxWorldInvTranspose;
-	ID3DX11EffectVectorVariable* mfxEyePosW;
+	ID3DX11EffectMatrixVariable* mfxWorld;         //世界矩阵
+	ID3DX11EffectMatrixVariable* mfxWorldInvTranspose;     //用于法线转换
+	ID3DX11EffectVectorVariable* mfxEyePosW;          //摄像机所在位置
+	ID3DX11EffectMatrixVariable* mfxTexTransform;      //纹理变换，如要让纹理旋转
+	ID3DX11EffectShaderResourceVariable* mfxDiffuseMap;   //纹理资源
 	ID3DX11EffectVariable* mfxDirLight;
 	ID3DX11EffectVariable* mfxPointLight;
 	ID3DX11EffectVariable* mfxSpotLight;
 	ID3DX11EffectVariable* mfxMaterial;
+	ID3D11ShaderResourceView* mliftSRV;
+	ID3D11ShaderResourceView* mWallSRV;
 
 	ID3D11InputLayout* mInputLayout;       //输入布局
 
 	XMFLOAT4X4 mWorld;
 	XMFLOAT4X4 mView;
 	XMFLOAT4X4 mProj;
+	XMFLOAT4X4 mTexTransform;
 	XMFLOAT3 mEyePosW;
 
 	DirectionalLight mDirLight;
@@ -113,15 +118,18 @@ protected:
 
 	std::wstring mWndCaption;
 	D3D_DRIVER_TYPE md3dDriveType;
+	UINT m4xMsaaQuality;
 	int mClientWidth;
 	int mClientHeight;
 
 	float liftHeight;
+	float dstHeight;
 	float moveSpeed;
 	bool bCanMove;
 };
 
 
+//入口函数
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 	PSTR cmdLine, int showCmd)
 {

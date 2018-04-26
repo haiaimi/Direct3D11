@@ -20,12 +20,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\D3DHelper\d3dx11effect.h" />
+    <ClInclude Include="..\D3DHelper\DDSTextureLoader.h" />
     <ClInclude Include="..\D3DHelper\GameTimer.h" />
     <ClInclude Include="..\D3DHelper\LightHelper.h" />
     <ClInclude Include="..\D3DHelper\MathHelper.h" />
     <ClInclude Include="LiftSimulation.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\D3DHelper\DDSTextureLoader.cpp" />
     <ClCompile Include="..\D3DHelper\GameTimer.cpp" />
     <ClCompile Include="..\D3DHelper\LightHelper.cpp" />
     <ClCompile Include="..\D3DHelper\MathHelper.cpp" />
