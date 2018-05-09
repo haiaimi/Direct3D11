@@ -19,10 +19,10 @@ struct DirectionalLight
 {
 	DirectionalLight() { ZeroMemory(this, sizeof(this)); }
 
-	XMFLOAT4 Ambient;
-	XMFLOAT4 Diffuse;
-	XMFLOAT4 Specular;
-	XMFLOAT3 Direction;
+	XMFLOAT4 Ambient;     //环境光
+	XMFLOAT4 Diffuse;       //散射
+	XMFLOAT4 Specular;	    //镜面
+	XMFLOAT3 Direction;      //方向
 	float Pad; // Pad the last float so we can set an array of lights if we wanted.
 };
 

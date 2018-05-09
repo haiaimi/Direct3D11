@@ -32,12 +32,13 @@ using namespace DirectX::PackedVector;
 //---------------------------------------------------------------------------------------
 
 #if defined(DEBUG) | defined(_DEBUG)
-	#ifndef HR
-	#define HR(x)                                              \
+#ifndef HR
+#define HR(x)                                                  \
 	{                                                          \
 		HRESULT hr = (x);                                      \
 		if(FAILED(hr))                                         \
 		{                                                      \
+			 DXTrace(__FILEW__, (DWORD)__LINE__, hr, L#x, true); \
 		}                                                      \
 	}
 	#endif

@@ -13,6 +13,9 @@
 
 #include "d3dUtil.h"
 
+using namespace DirectX;
+using namespace DirectX::PackedVector;
+
 class Camera
 {
 public:
@@ -38,7 +41,7 @@ public:
 	float GetFarZ()const;
 	float GetAspect()const;
 	float GetFovY()const;
-	float GetFovX()const;
+	float GetFovX()const;   
 
 	// Get near and far plane dimensions in view space coordinates.
 	float GetNearWindowWidth()const;
@@ -46,7 +49,7 @@ public:
 	float GetFarWindowWidth()const;
 	float GetFarWindowHeight()const;
 	
-	// Set frustum.
+	// Set frustum.  设置截锥体的属性（用于得出投影矩阵）
 	void SetLens(float fovY, float aspect, float zn, float zf);
 
 	// Define camera space via LookAt parameters.
@@ -62,9 +65,11 @@ public:
 	void Strafe(float d);
 	void Walk(float d);
 
-	// Rotate the camera.
+	// Rotate the camera.  和正常游戏引擎中一样，不旋转roll轴
 	void Pitch(float angle);
 	void RotateY(float angle);
+	//添加roll轴旋转，可能在飞行有游戏中使用
+	void Roll(float angle);
 
 	// After modifying camera position/orientation, call to rebuild the view matrix.
 	void UpdateViewMatrix();

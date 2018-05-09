@@ -10,7 +10,7 @@ GameTimer::GameTimer()
   mPausedTime(0), mPrevTime(0), mCurrTime(0), mStopped(false)
 {
 	__int64 countsPerSec;
-	QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
+	QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);     //返回高精度计时器的频率
 	mSecondsPerCount = 1.0 / (double)countsPerSec;
 }
 
@@ -56,7 +56,7 @@ float GameTimer::DeltaTime()const
 void GameTimer::Reset()
 {
 	__int64 currTime;
-	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
+	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);     //高精度计时器
 
 	mBaseTime = currTime;
 	mPrevTime = currTime;
@@ -107,7 +107,7 @@ void GameTimer::Tick()
 	}
 
 	__int64 currTime;
-	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
+	QueryPerformanceCounter((LARGE_INTEGER*)&currTime); 
 	mCurrTime = currTime;
 
 	// Time difference between this frame and the previous.

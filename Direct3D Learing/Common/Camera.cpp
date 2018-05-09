@@ -82,11 +82,13 @@ float Camera::GetAspect()const
 	return mAspect;
 }
 
+//直接获取纵向FOV
 float Camera::GetFovY()const
 {
 	return mFovY;
 }
 
+//求横向的FOV
 float Camera::GetFovX()const
 {
 	float halfWidth = 0.5f*GetNearWindowWidth();
@@ -176,7 +178,7 @@ void Camera::Strafe(float d)
 void Camera::Walk(float d)
 {
 	// mPosition += d*mLook
-	XMVECTOR s = XMVectorReplicate(d);
+	XMVECTOR s = XMVectorReplicate(d);   //s向量中4个分量为同一个值，
 	XMVECTOR l = XMLoadFloat3(&mLook);
 	XMVECTOR p = XMLoadFloat3(&mPosition);
 	XMStoreFloat3(&mPosition, XMVectorMultiplyAdd(s, l, p));
@@ -196,13 +198,23 @@ void Camera::RotateY(float angle)
 {
 	// Rotate the basis vectors about the world y-axis.
 
-	XMMATRIX R = XMMatrixRotationY(angle);
+	XMMATRIX R = XMMatrixRotationY(angle);      //得出变换矩阵
 
 	XMStoreFloat3(&mRight,   XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
 	XMStoreFloat3(&mUp, XMVector3TransformNormal(XMLoadFloat3(&mUp), R));
 	XMStoreFloat3(&mLook, XMVector3TransformNormal(XMLoadFloat3(&mLook), R));
 }
 
+void Camera::Roll(float angle)
+{
+	//旋转Roll轴，就是其中的Z轴，这在正常游戏中是不变的
+	XMMATRIX R = XMMatrixRotationAxis(XMLoadFloat3(&mLook), angle);
+
+	XMStoreFloat3(&mUp, XMVector3TransformNormal(XMLoadFloat3(&mUp), R));
+	XMStoreFloat3(&mRight, XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
+}
+
+//计算观察矩阵
 void Camera::UpdateViewMatrix()
 {
 	XMVECTOR R = XMLoadFloat3(&mRight);
@@ -218,6 +230,7 @@ void Camera::UpdateViewMatrix()
 	R = XMVector3Cross(U, L); 
 
 	// Fill in the view matrix entries.
+	//要注意这里需要把世界坐标转换到到摄像机坐标系，不能直接使用摄像机的位置
 	float x = -XMVectorGetX(XMVector3Dot(P, R));
 	float y = -XMVectorGetX(XMVector3Dot(P, U));
 	float z = -XMVectorGetX(XMVector3Dot(P, L));

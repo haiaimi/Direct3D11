@@ -62,8 +62,8 @@ public:
 		XMMATRIX A = M;
 		A.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
-		XMVECTOR det = XMMatrixDeterminant(A);
-		return XMMatrixTranspose(XMMatrixInverse(&det, A));
+		XMVECTOR det = XMMatrixDeterminant(A);     //求出行列式
+		return XMMatrixTranspose(XMMatrixInverse(&det, A));       //求矩阵的逆
 	}
 
 	static XMVECTOR RandUnitVec3();
