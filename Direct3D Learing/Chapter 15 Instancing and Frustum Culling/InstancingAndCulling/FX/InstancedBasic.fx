@@ -61,6 +61,7 @@ VertexOut VS(VertexIn vin)
 	VertexOut vout;
 	
 	// Transform to world space space.
+	// 把本地位置转换到世界位置
 	vout.PosW    = mul(float4(vin.PosL, 1.0f), vin.World).xyz;
 	vout.NormalW = mul(vin.NormalL, (float3x3)vin.World);
 		

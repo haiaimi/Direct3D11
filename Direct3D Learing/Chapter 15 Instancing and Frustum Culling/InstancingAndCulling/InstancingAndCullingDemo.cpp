@@ -54,6 +54,7 @@ private:
 
 	// Bounding box of the skull.
 	XNA::AxisAlignedBox mSkullBox;
+	XNA::Sphere mSkullSphere;
 	XNA::Frustum mCamFrustum;
 	
 	UINT mVisibleObjectCount;
@@ -165,6 +166,7 @@ void InstancingAndCullingApp::OnResize()
 	mCam.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 
 	// Build the frustum from the projection matrix in view space.
+	// 求取投影矩阵的截锥体信息
 	ComputeFrustumFromProjection(&mCamFrustum, &mCam.Proj());
 }
 
@@ -214,22 +216,29 @@ void InstancingAndCullingApp::UpdateScene(float dt)
 			XMMATRIX invWorld = XMMatrixInverse(&XMMatrixDeterminant(W), W);
 
 			// View space to the object's local space.
-			XMMATRIX toLocal = XMMatrixMultiply(invView, invWorld);
+			// 观察空间转换到世界坐标的矩阵
+			XMMATRIX toLocal = XMMatrixMultiply(invView, invWorld);  //可以分步求得世界观察矩阵的逆，这样更容易理解，先转到摄像机所在位置，然后转换到物体坐标为原点的坐标系
+
+			//toLocal = XMMatrixInverse(&detView, XMMatrixMultiply(W, mCam.View()));   //可以直接给世界观察矩阵求逆，结果是一样的
 		
 			// Decompose the matrix into its individual parts.
+			// 求出各个变换量
 			XMVECTOR scale;
 			XMVECTOR rotQuat;
 			XMVECTOR translation;
 			XMMatrixDecompose(&scale, &rotQuat, &translation, toLocal);
 
 			// Transform the camera frustum from view space to the object's local space.
+			// 把观察坐标系下的截锥体转换到世界坐标系下，此时物体所在位置为原点
 			XNA::Frustum localspaceFrustum;
 			XNA::TransformFrustum(&localspaceFrustum, &mCamFrustum, XMVectorGetX(scale), rotQuat, translation);
 
 			// Perform the box/frustum intersection test in local space.
-			if(XNA::IntersectAxisAlignedBoxFrustum(&mSkullBox, &localspaceFrustum) != 0)
+			//检测轴对齐包围盒和截锥体是否相交
+			if (/*XNA::IntersectAxisAlignedBoxFrustum(&mSkullBox, &localspaceFrustum) != 0*/ XNA::IntersectSphereFrustum(&mSkullSphere, &localspaceFrustum) != 0)      //更换为Sphere包围体
 			{
 				// Write the instance data to dynamic VB of the visible objects.
+				// 写入需要绘制得Instance
 				dataView[mVisibleObjectCount++] = mInstancedData[i];
 			}
 		}
@@ -373,12 +382,16 @@ void InstancingAndCullingApp::BuildSkullGeometryBuffers()
 	XMStoreFloat3(&mSkullBox.Center, 0.5f*(vMin+vMax));
 	XMStoreFloat3(&mSkullBox.Extents, 0.5f*(vMax-vMin));
 
+	XMStoreFloat3(&mSkullSphere.Center, 0.5f*(vMin + vMax));
+	mSkullSphere.Radius = XMVectorGetX(XMVector3Length(0.5f*(vMax - vMin)));
+
 	fin >> ignore;
 	fin >> ignore;
 	fin >> ignore;
 
 	mSkullIndexCount = 3*tcount;
-	std::vector<UINT> indices(mSkullIndexCount);
+	//std::vector<UINT> indices(mSkullIndexCount);
+	UINT* indices = new UINT[mSkullIndexCount];
 	for(UINT i = 0; i < tcount; ++i)
 	{
 		fin >> indices[i*3+0] >> indices[i*3+1] >> indices[i*3+2];
@@ -407,7 +420,7 @@ void InstancingAndCullingApp::BuildSkullGeometryBuffers()
     ibd.CPUAccessFlags = 0;
     ibd.MiscFlags = 0;
     D3D11_SUBRESOURCE_DATA iinitData;
-	iinitData.pSysMem = &indices[0];
+	iinitData.pSysMem = indices;
     HR(md3dDevice->CreateBuffer(&ibd, &iinitData, &mSkullIB));
 }
 
@@ -456,5 +469,6 @@ void InstancingAndCullingApp::BuildInstancedBuffer()
     vbd.MiscFlags = 0;
 	vbd.StructureByteStride = 0;
 	
+	//要注意这里并没有传入Instance数据，因为在后面渲染的时候会改变其值
     HR(md3dDevice->CreateBuffer(&vbd, 0, &mInstancedBuffer));
 }
