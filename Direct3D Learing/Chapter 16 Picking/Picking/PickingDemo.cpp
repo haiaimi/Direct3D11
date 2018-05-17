@@ -51,6 +51,7 @@ private:
 	std::vector<UINT> mMeshIndices;
 
 	XNA::AxisAlignedBox mMeshBox;
+	XNA::Sphere mMeshSphere;     //球体包围体
 
 	DirectionalLight mDirLights[3];
 	Material mMeshMat;
@@ -326,6 +327,10 @@ void PickingApp::BuildMeshGeometryBuffers()
 	XMStoreFloat3(&mMeshBox.Center, 0.5f*(vMin+vMax));
 	XMStoreFloat3(&mMeshBox.Extents, 0.5f*(vMax-vMin));
 
+	// 求球形包围体的信息
+	XMStoreFloat3(&mMeshSphere.Center, 0.5f*(vMin + vMax));
+	mMeshSphere.Radius = XMVectorGetX(XMVector3Length(0.5f*(vMax - vMin)));
+
 	fin >> ignore;
 	fin >> ignore;
 	fin >> ignore;
@@ -403,7 +408,7 @@ void PickingApp::Pick(int sx, int sy)
 	mPickedTriangle = -1;
 	float tmin = 0.0f;
 	// 如果检测到网格包围体才会进行检测三角形
-	if(XNA::IntersectRayAxisAlignedBox(rayOrigin, rayDir, &mMeshBox, &tmin))
+	if (/*XNA::IntersectRayAxisAlignedBox(rayOrigin, rayDir, &mMeshBox, &tmin)*/ XNA::IntersectRaySphere(rayOrigin, rayDir, &mMeshSphere, &tmin))
 	{
 		// Find the nearest ray/triangle intersection.
 		tmin = MathHelper::Infinity;
