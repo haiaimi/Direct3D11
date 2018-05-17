@@ -583,7 +583,7 @@ VOID ComputeBoundingOrientedBoxFromPoints( OrientedBox* pOut, UINT Count, const 
     // Compute the center of mass and inertia tensor of the points.
     for( UINT i = 0; i < Count; i++ )
     {
-        XMVECTOR Point = XMLoadFloat3( ( XMFLOAT3* )( ( BYTE* )pPoints + i * Stride ) );
+        XMVECTOR Point = XMLoadFloat3( ( XMFLOAT3* )( ( BYTE* )pPoints + i * Stride ) );       //强制转换成char（1字节）型,然后再转换成 XMFLOAT3 结构
 
         CenterOfMass += Point;
     }
@@ -694,6 +694,7 @@ VOID ComputeFrustumFromProjection( Frustum* pOut, XMMATRIX* pProjection )
    assert( pProjection );
 
     // Corners of the projection frustum in homogenous space.
+   // d3d中的NDC空间相关
     static XMVECTOR HomogenousPoints[6] =
     {
         {  1.0f,  0.0f, 1.0f, 1.0f },   // right (at far plane)
@@ -727,14 +728,18 @@ VOID ComputeFrustumFromProjection( Frustum* pOut, XMMATRIX* pProjection )
     Points[2] = Points[2] * XMVectorReciprocal( XMVectorSplatZ( Points[2] ) );
     Points[3] = Points[3] * XMVectorReciprocal( XMVectorSplatZ( Points[3] ) );
 
+	//就是求出周围4个面的斜率（中心线）
     pOut->RightSlope = XMVectorGetX( Points[0] );
     pOut->LeftSlope = XMVectorGetX( Points[1] );
     pOut->TopSlope = XMVectorGetY( Points[2] );
     pOut->BottomSlope = XMVectorGetY( Points[3] );
 
-    // Compute near and far.
+    // Compute near and far. 
+	// 计算远近距离
     Points[4] = Points[4] * XMVectorReciprocal( XMVectorSplatW( Points[4] ) );
     Points[5] = Points[5] * XMVectorReciprocal( XMVectorSplatW( Points[5] ) );
+
+	// 根据上面提供的6个值可以导出截锥体的信息
 
     pOut->Near = XMVectorGetZ( Points[4] );
     pOut->Far = XMVectorGetZ( Points[5] );
@@ -1181,14 +1186,14 @@ BOOL IntersectRaySphere( FXMVECTOR Origin, FXMVECTOR Direction, const Sphere* pV
     XMVECTOR Radius = XMVectorReplicatePtr( &pVolume->Radius );
 
     // l is the vector from the ray origin to the center of the sphere.
-    XMVECTOR l = Center - Origin;
+    XMVECTOR l = Center - Origin;       
 
     // s is the projection of the l onto the ray direction.
-    XMVECTOR s = XMVector3Dot( l, Direction );
+    XMVECTOR s = XMVector3Dot( l, Direction );  //球心到起点的向量到射线方向的投影
 
-    XMVECTOR l2 = XMVector3Dot( l, l );
+    XMVECTOR l2 = XMVector3Dot( l, l );      // 起点到球心距离的平方
 
-    XMVECTOR r2 = Radius * Radius;
+    XMVECTOR r2 = Radius * Radius;   //球体半径平方
 
     // m2 is squared distance from the center of the sphere to the projection.
     XMVECTOR m2 = l2 - s * s;
@@ -1208,7 +1213,7 @@ BOOL IntersectRaySphere( FXMVECTOR Origin, FXMVECTOR Direction, const Sphere* pV
     XMVECTOR t1 = s - q;
     XMVECTOR t2 = s + q;
 
-    XMVECTOR OriginInside = XMVectorLessOrEqual( l2, r2 );
+    XMVECTOR OriginInside = XMVectorLessOrEqual( l2, r2 );   //射线在求体内判断
     XMVECTOR t = XMVectorSelect( t1, t2, OriginInside );
 
     if( XMVector4NotEqualInt( NoIntersection, XMVectorTrueInt() ) )
