@@ -78,7 +78,8 @@ float4 PS(VertexOut pin,
 		  uniform bool gReflectionEnabled) : SV_Target
 {
 	// Interpolating normal can unnormalize it, so normalize it.
-    pin.NormalW = normalize(pin.NormalW);
+	// 该点法线
+    pin.NormalW = normalize(pin.NormalW);  //
 
 	// The toEye vector is used in lighting.
 	float3 toEye = gEyePosW - pin.PosW;
@@ -134,6 +135,7 @@ float4 PS(VertexOut pin,
 
 		if( gReflectionEnabled )
 		{
+			// 根据光线反射方向获取CubeTerxture上
 			float3 incident = -toEye;
 			float3 reflectionVector = reflect(incident, pin.NormalW);
 			float4 reflectionColor  = gCubeMap.Sample(samAnisotropic, reflectionVector);

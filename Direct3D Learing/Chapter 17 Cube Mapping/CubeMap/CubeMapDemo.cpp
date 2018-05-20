@@ -167,7 +167,7 @@ CubeMapApp::CubeMapApp(HINSTANCE hInstance)
 	mCylinderMat.Ambient  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	mCylinderMat.Diffuse  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	mCylinderMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-	mCylinderMat.Reflect  = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	mCylinderMat.Reflect  = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
 
 	mSphereMat.Ambient  = XMFLOAT4(0.2f, 0.3f, 0.4f, 1.0f);
 	mSphereMat.Diffuse  = XMFLOAT4(0.2f, 0.3f, 0.4f, 1.0f);
@@ -177,11 +177,11 @@ CubeMapApp::CubeMapApp(HINSTANCE hInstance)
 	mBoxMat.Ambient  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	mBoxMat.Diffuse  = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	mBoxMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-	mBoxMat.Reflect  = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	mBoxMat.Reflect  = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
 
 	mSkullMat.Ambient  = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
 	mSkullMat.Diffuse  = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-	mSkullMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+	mSkullMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.f);
 	mSkullMat.Reflect  = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 }
 
@@ -325,7 +325,7 @@ void CubeMapApp::DrawScene()
 	// Draw the grid, cylinders, and box without any cubemap reflection.
 	// 
     D3DX11_TECHNIQUE_DESC techDesc;
-    activeTexTech->GetDesc( &techDesc );
+	activeReflectTech->GetDesc( &techDesc );
     for(UINT p = 0; p < techDesc.Passes; ++p)
     {
 		md3dImmediateContext->IASetVertexBuffers(0, 1, &mShapesVB, &stride, &offset);
@@ -343,7 +343,7 @@ void CubeMapApp::DrawScene()
 		Effects::BasicFX->SetMaterial(mGridMat);
 		Effects::BasicFX->SetDiffuseMap(mFloorTexSRV);
 
-		activeTexTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+		activeReflectTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mGridIndexCount, mGridIndexOffset, mGridVertexOffset);
 
 		// Draw the box.
@@ -358,7 +358,7 @@ void CubeMapApp::DrawScene()
 		Effects::BasicFX->SetMaterial(mBoxMat);
 		Effects::BasicFX->SetDiffuseMap(mStoneTexSRV);
 
-		activeTexTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+		activeReflectTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
 		md3dImmediateContext->DrawIndexed(mBoxIndexCount, mBoxIndexOffset, mBoxVertexOffset);
 
 		// Draw the cylinders.
@@ -375,7 +375,7 @@ void CubeMapApp::DrawScene()
 			Effects::BasicFX->SetMaterial(mCylinderMat);
 			Effects::BasicFX->SetDiffuseMap(mBrickTexSRV);
 
-			activeTexTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
+			activeReflectTech->GetPassByIndex(p)->Apply(0, md3dImmediateContext);
 			md3dImmediateContext->DrawIndexed(mCylinderIndexCount, mCylinderIndexOffset, mCylinderVertexOffset);
 		}
     }

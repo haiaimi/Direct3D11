@@ -35,7 +35,7 @@ VertexOut VS(VertexIn vin)
 	VertexOut vout;
 	
 	// Set z = w so that z/w = 1 (i.e., skydome always on far plane).
-	// z方向一直为1的话，背景图就是一直远离摄像机
+	// z/w方向一直为1的话，背景图就是一直远离摄像机，因为在透视相除时，w分量会被赋z值
 	vout.PosH = mul(float4(vin.PosL, 1.0f), gWorldViewProj).xyww;
 	
 	// Use local vertex position as cubemap lookup vector.
