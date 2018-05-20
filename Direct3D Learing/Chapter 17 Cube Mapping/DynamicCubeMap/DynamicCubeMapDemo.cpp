@@ -205,7 +205,7 @@ DynamicCubeMapApp::DynamicCubeMapApp(HINSTANCE hInstance)
 	mCenterSphereMat.Ambient  = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
 	mCenterSphereMat.Diffuse  = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
 	mCenterSphereMat.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-	mCenterSphereMat.Reflect  = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+	mCenterSphereMat.Reflect  = XMFLOAT4(1.f, 1.f, 1.f, 1.0f);
 }
 
 DynamicCubeMapApp::~DynamicCubeMapApp()
