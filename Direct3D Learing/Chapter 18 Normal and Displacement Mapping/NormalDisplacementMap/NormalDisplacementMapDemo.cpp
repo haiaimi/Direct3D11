@@ -312,11 +312,12 @@ void NormalDisplacementMapApp::DrawScene()
 	Effects::DisplacementMapFX->SetCubeMap(mSky->CubeMapSRV());
 
 	// These properties could be set per object if needed.
-	Effects::DisplacementMapFX->SetHeightScale(0.07f);
+	// 修改细分距离来获取不同的效果
+	Effects::DisplacementMapFX->SetHeightScale(0.06f);
 	Effects::DisplacementMapFX->SetMaxTessDistance(1.0f);
 	Effects::DisplacementMapFX->SetMinTessDistance(25.0f);
-	Effects::DisplacementMapFX->SetMinTessFactor(1.0f);
-	Effects::DisplacementMapFX->SetMaxTessFactor(5.0f);
+	Effects::DisplacementMapFX->SetMinTessFactor(5.0f);
+	Effects::DisplacementMapFX->SetMaxTessFactor(10.0f);
  
 	// Figure out which technique to use for different geometry.
 

@@ -123,7 +123,7 @@ struct HullOut
 [outputcontrolpoints(3)]
 [patchconstantfunc("PatchHS")]
 HullOut HS(InputPatch<VertexOut,3> p, 
-           uint i : SV_OutputControlPointID,
+           uint i : SV_OutputControlPointID,    // 就是此次函数输出的InputPatch的次序
            uint patchId : SV_PrimitiveID)
 {
 	HullOut hout;
@@ -156,6 +156,7 @@ DomainOut DS(PatchTess patchTess,
 	DomainOut dout;
 	
 	// Interpolate patch attributes to generated vertices.
+	// 根据插值计算出新顶点位置
 	dout.PosW     = bary.x*tri[0].PosW     + bary.y*tri[1].PosW     + bary.z*tri[2].PosW;
 	dout.NormalW  = bary.x*tri[0].NormalW  + bary.y*tri[1].NormalW  + bary.z*tri[2].NormalW;
 	dout.TangentW = bary.x*tri[0].TangentW + bary.y*tri[1].TangentW + bary.z*tri[2].TangentW;
@@ -174,9 +175,11 @@ DomainOut DS(PatchTess patchTess,
 	float mipLevel = clamp( (distance(dout.PosW, gEyePosW) - MipInterval) / MipInterval, 0.0f, 6.0f);
 	
 	// Sample height map (stored in alpha channel).
+	// 获取偏移高度
 	float h = gNormalMap.SampleLevel(samLinear, dout.Tex, mipLevel).a;
 	
 	// Offset vertex along normal.
+	// 计算高度偏移
 	dout.PosW += (gHeightScale*(h-1.0))*dout.NormalW;
 	
 	// Project to homogeneous clip space.
