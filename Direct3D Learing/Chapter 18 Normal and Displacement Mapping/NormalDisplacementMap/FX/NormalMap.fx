@@ -110,7 +110,9 @@ float4 PS(VertexOut pin,
 	//
 
 	float3 normalMapSample = gNormalMap.Sample(samLinear, pin.Tex).rgb;
-	float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, pin.NormalW, pin.TangentW);
+	float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample, pin.NormalW, pin.TangentW);      // 根据法线/切线的世界坐标，计算取样法线在世界坐标系中的向量
+	float3 normalT = 2.0f*normalMapSample - 1.0f;
+
 	 
 	//
 	// Lighting.
@@ -128,9 +130,21 @@ float4 PS(VertexOut pin,
 		[unroll]
 		for(int i = 0; i < gLightCount; ++i)
 		{
+			// light，eye转换到Tangent坐标系中
+			float3 toEyeT;
+			float3 lightDirT;
+
+			DirectionalLight gDirLightT = gDirLights[i];
+			LightEyeToTangentSpace(gDirLightT.Direction, toEye, pin.NormalW, pin.TangentW, lightDirT, toEyeT);
+			gDirLightT.Direction = lightDirT;
+
 			float4 A, D, S;
-			ComputeDirectionalLight(gMaterial, gDirLights[i], bumpedNormalW, toEye, 
+			ComputeDirectionalLight(gMaterial, gDirLightT, normalT, toEyeT,
 				A, D, S);
+
+			//下面是转换到世界坐标系下的计算
+			/*ComputeDirectionalLight(gMaterial, gDirLights[i], bumpedNormalW, toEye,
+				A, D, S);*/
 
 			ambient += A;
 			diffuse += D;

@@ -316,7 +316,8 @@ void NormalDisplacementMapApp::DrawScene()
 	Effects::DisplacementMapFX->SetHeightScale(0.06f);
 	Effects::DisplacementMapFX->SetMaxTessDistance(1.0f);
 	Effects::DisplacementMapFX->SetMinTessDistance(25.0f);
-	Effects::DisplacementMapFX->SetMinTessFactor(5.0f);
+	//修改下列数据会修改镶嵌程度，会影响渲染效率
+	Effects::DisplacementMapFX->SetMinTessFactor(1.0f);
 	Effects::DisplacementMapFX->SetMaxTessFactor(10.0f);
  
 	// Figure out which technique to use for different geometry.
