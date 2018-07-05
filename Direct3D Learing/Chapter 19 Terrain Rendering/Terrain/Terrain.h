@@ -27,7 +27,7 @@ public:
 		float HeightScale;
 		UINT HeightmapWidth;
 		UINT HeightmapHeight;
-		float CellSpacing;
+		float CellSpacing;        //每个图片像素之间的距离
 	};
 
 public:

@@ -291,6 +291,7 @@ void Terrain::CalcAllPatchBoundsY()
 	}
 }
 
+// 该函数用来计算一个Patch里 最高/最低 高度
 void Terrain::CalcPatchBoundsY(UINT i, UINT j)
 {
 	// Scan the heightmap values this patch covers and compute the min/max height.
@@ -324,11 +325,13 @@ void Terrain::BuildQuadPatchVB(ID3D11Device* device)
 	float halfWidth = 0.5f*GetWidth();
 	float halfDepth = 0.5f*GetDepth();
 
+	// 计算每个Patch的 宽/高
 	float patchWidth = GetWidth() / (mNumPatchVertCols-1);
 	float patchDepth = GetDepth() / (mNumPatchVertRows-1);
 	float du = 1.0f / (mNumPatchVertCols-1);
 	float dv = 1.0f / (mNumPatchVertRows-1);
 
+	//地形网格构建，顶点及UV
 	for(UINT i = 0; i < mNumPatchVertRows; ++i)
 	{
 		float z = halfDepth - i*patchDepth;
@@ -345,6 +348,7 @@ void Terrain::BuildQuadPatchVB(ID3D11Device* device)
 	}
 
 	// Store axis-aligned bounding box y-bounds in upper-left patch corner.
+	// 根据前面计算的高度来
 	for(UINT i = 0; i < mNumPatchVertRows-1; ++i)
 	{
 		for(UINT j = 0; j < mNumPatchVertCols-1; ++j)
@@ -354,6 +358,7 @@ void Terrain::BuildQuadPatchVB(ID3D11Device* device)
 		}
 	}
 
+	//创建顶点缓冲
     D3D11_BUFFER_DESC vbd;
     vbd.Usage = D3D11_USAGE_IMMUTABLE;
 	vbd.ByteWidth = sizeof(Vertex::Terrain) * patchVertices.size();
@@ -369,6 +374,7 @@ void Terrain::BuildQuadPatchVB(ID3D11Device* device)
 
 void Terrain::BuildQuadPatchIB(ID3D11Device* device)
 {
+	//绘制单元是一个方形
 	std::vector<USHORT> indices(mNumPatchQuadFaces*4); // 4 indices per quad face
 
 	// Iterate over each quad and compute indices.
@@ -389,6 +395,7 @@ void Terrain::BuildQuadPatchIB(ID3D11Device* device)
 		}
 	}
 
+	//创建索引缓冲
 	D3D11_BUFFER_DESC ibd;
     ibd.Usage = D3D11_USAGE_IMMUTABLE;
 	ibd.ByteWidth = sizeof(USHORT) * indices.size();

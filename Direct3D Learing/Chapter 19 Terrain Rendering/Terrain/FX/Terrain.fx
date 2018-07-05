@@ -74,6 +74,7 @@ struct VertexOut
 	float2 BoundsY  : TEXCOORD1;
 };
 
+// 这里顶点着色器不负责什么运算，只是把数据传输过去
 VertexOut VS(VertexIn vin)
 {
 	VertexOut vout;
@@ -97,22 +98,27 @@ float CalcTessFactor(float3 p)
 	float d = distance(p, gEyePosW);
 
 	// max norm in xz plane (useful to see detail levels from a bird's eye).
-	//float d = max( abs(p.x-gEyePosW.x), abs(p.z-gEyePosW.z) );
+	// float d = max( abs(p.x-gEyePosW.x), abs(p.z-gEyePosW.z) );
 	
 	float s = saturate( (d - gMinDist) / (gMaxDist - gMinDist) );
 	
+	// 计算2^s
 	return pow(2, (lerp(gMaxTess, gMinTess, s)) );
 }
 
 // Returns true if the box is completely behind (in negative half space) of plane.
-bool AabbBehindPlaneTest(float3 center, float3 extents, float4 plane)
+// 检测一个Box与平面是否相交
+bool AabbBehindPlaneTest(float3 center, float3 extents, float4 plane)       //在包围盒检测中，extents必须是正
 {
+	// 这里的plane 是单位向量，下面就是取正
 	float3 n = abs(plane.xyz);
 	
 	// This is always positive.
+	// extent与原点到平面之间的关系，差不多就是包围盒中心到平面的中间距离
 	float r = dot(extents, n);
 	
 	// signed distance from center point to plane.
+	// 计算AABB中心点到比较平面的距离
 	float s = dot( float4(center, 1.0f), plane );
 	
 	// If the center point of the box is a distance of e or more behind the
@@ -122,6 +128,7 @@ bool AabbBehindPlaneTest(float3 center, float3 extents, float4 plane)
 }
 
 // Returns true if the box is completely outside the frustum.
+// 检测是否在截椎体内
 bool AabbOutsideFrustumTest(float3 center, float3 extents, float4 frustumPlanes[6])
 {
 	for(int i = 0; i < 6; ++i)
@@ -148,7 +155,7 @@ PatchTess ConstantHS(InputPatch<VertexOut, 4> patch, uint patchID : SV_Primitive
 	PatchTess pt;
 	
 	//
-	// Frustum cull
+	// Frustum cull           截椎体剔除
 	//
 	
 	// We store the patch BoundsY in the first control point.
@@ -278,6 +285,7 @@ float4 PS(DomainOut pin,
 {
 	//
 	// Estimate normal and tangent using central differences.
+	// 下面是估算法线和切线
 	//
 	float2 leftTex   = pin.Tex + float2(-gTexelCellSpaceU, 0.0f);
 	float2 rightTex  = pin.Tex + float2(gTexelCellSpaceU, 0.0f);
@@ -308,6 +316,7 @@ float4 PS(DomainOut pin,
 	//
 	
 	// Sample layers in texture array.
+	// 下面就是从5张图里取样
 	float4 c0 = gLayerMapArray.Sample( samLinear, float3(pin.TiledTex, 0.0f) );
 	float4 c1 = gLayerMapArray.Sample( samLinear, float3(pin.TiledTex, 1.0f) );
 	float4 c2 = gLayerMapArray.Sample( samLinear, float3(pin.TiledTex, 2.0f) );
@@ -318,6 +327,7 @@ float4 PS(DomainOut pin,
 	float4 t  = gBlendMap.Sample( samLinear, pin.Tex ); 
     
     // Blend the layers on top of each other.
+	// 根据每张图对应的灰度值
     float4 texColor = c0;
     texColor = lerp(texColor, c1, t.r);
     texColor = lerp(texColor, c2, t.g);

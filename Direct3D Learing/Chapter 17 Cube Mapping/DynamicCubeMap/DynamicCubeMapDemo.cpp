@@ -615,7 +615,7 @@ void DynamicCubeMapApp::BuildDynamicCubeMapViews()
     texDesc.Usage = D3D11_USAGE_DEFAULT;
     texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     texDesc.CPUAccessFlags = 0; 
-    texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS | D3D11_RESOURCE_MISC_TEXTURECUBE;
+    texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS | D3D11_RESOURCE_MISC_TEXTURECUBE;       //这里
 
 	ID3D11Texture2D* cubeTex = 0;
     HR(md3dDevice->CreateTexture2D(&texDesc, 0, &cubeTex));
@@ -634,7 +634,7 @@ void DynamicCubeMapApp::BuildDynamicCubeMapViews()
 
     for(int i = 0; i < 6; ++i)
     {
-        rtvDesc.Texture2DArray.FirstArraySlice = i;
+        rtvDesc.Texture2DArray.FirstArraySlice = i;   //创建贴图的序号
         HR(md3dDevice->CreateRenderTargetView(cubeTex, &rtvDesc, &mDynamicCubeMapRTV[i]));
     }
 
@@ -649,7 +649,7 @@ void DynamicCubeMapApp::BuildDynamicCubeMapViews()
     srvDesc.TextureCube.MostDetailedMip = 0;
 	srvDesc.TextureCube.MipLevels = -1;
 
-    HR(md3dDevice->CreateShaderResourceView(cubeTex, &srvDesc, &mDynamicCubeMapSRV));
+    HR(md3dDevice->CreateShaderResourceView(cubeTex, &srvDesc, &mDynamicCubeMapSRV));       
 
 	ReleaseCOM(cubeTex);
 
@@ -658,6 +658,7 @@ void DynamicCubeMapApp::BuildDynamicCubeMapViews()
 	// that has the same resolution as the cubemap faces.  
 	//
 
+	// 下面就是创建对应CubeMap的深度模板缓冲
 	D3D11_TEXTURE2D_DESC depthTexDesc;
     depthTexDesc.Width = CubeMapSize;
     depthTexDesc.Height = CubeMapSize;
@@ -687,6 +688,7 @@ void DynamicCubeMapApp::BuildDynamicCubeMapViews()
 	//
 	// Viewport for drawing into cubemap.
 	// 
+
 
 	mCubeMapViewport.TopLeftX = 0.0f;
     mCubeMapViewport.TopLeftY = 0.0f;

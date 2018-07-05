@@ -134,13 +134,19 @@ float4 PS(VertexOut pin,
 
 		if( gReflectionEnabled )
 		{
-			float3 incident = -toEye;
-			float3 reflectionVector = reflect(incident, pin.NormalW);   //计算反射向量
-			float3 refractionVector = refract(incident, pin.NormalW, 0.97f);   //计算折射方向，第三个参数是折射因素（两种介质反射率相除）
-			float4 reflectionColor  = gCubeMap.Sample(samAnisotropic, reflectionVector);    //反射向量取样
-			float4 refractionColor = gCubeMap.Sample(samAnisotropic, refractionVector);     //折射方向取样
+			//float3 incident = -toEye;
+			//float3 reflectionVector = reflect(incident, pin.NormalW);   //计算反射向量
+			//float3 refractionVector = refract(incident, pin.NormalW, 0.97f);   //计算折射方向，第三个参数是折射因素（两种介质反射率相除）
+			//float4 reflectionColor  = gCubeMap.Sample(samAnisotropic, reflectionVector);    //反射向量取样
+			//float4 refractionColor = gCubeMap.Sample(samAnisotropic, refractionVector);     //折射方向取样
 
-			litColor += gMaterial.Reflect*refractionColor;  //这里根据不同的要求选择不同的反射参数
+			//litColor += gMaterial.Reflect*refractionColor;  //这里根据不同的要求选择不同的反射参数
+
+			float3 incident = -toEye;
+			float3 reflectionVector = reflect(incident, pin.NormalW);
+			float4 reflectionColor = gCubeMap.Sample(samAnisotropic, reflectionVector);
+
+			litColor += gMaterial.Reflect*reflectionColor;
 		}
 	}
  
