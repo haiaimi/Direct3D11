@@ -53,10 +53,12 @@ float Terrain::GetDepth()const
 float Terrain::GetHeight(float x, float z)const
 {
 	// Transform from terrain local space to "cell" space.
+	// 把地形上的位置转换到高度图上的具体像素点位置
 	float c = (x + 0.5f*GetWidth()) /  mInfo.CellSpacing;
 	float d = (z - 0.5f*GetDepth()) / -mInfo.CellSpacing;
 
 	// Get the row and column we are in.
+	// 
 	int row = (int)floorf(d);
 	int col = (int)floorf(c);
 

@@ -53,21 +53,13 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-<<<<<<< HEAD
       <AdditionalIncludeDirectories>C:\VSProject\Direct3D11\Direct3D Learing\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-=======
-      <AdditionalIncludeDirectories>D:\程序\DX11\Direct3D11\Direct3D Learing\Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
->>>>>>> 885ccf6c36a8dd0234018fe236a35adc8e2a2819
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d11.lib;D3DCompiler.lib;Effects11d.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
-<<<<<<< HEAD
       <AdditionalLibraryDirectories>C:\VSProject\Direct3D11\Direct3D Learing\Common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-=======
-      <AdditionalLibraryDirectories>D:\程序\DX11\Direct3D11\Direct3D Learing\Common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
->>>>>>> 885ccf6c36a8dd0234018fe236a35adc8e2a2819
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

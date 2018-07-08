@@ -104,6 +104,11 @@ float CalcTessFactor(float3 p)
 	
 	// 计算2^s
 	return pow(2, (lerp(gMaxTess, gMinTess, s)) );
+
+	// 下面的部分可用于调试，更清晰的表达出LOD的变换
+	//float d = max(abs(p.x - gEyePosW.x), abs(p.z - gEyePosW.z));    // 没有使用Distance，只使用x，z两个轴
+	//float s = saturate((d - gMinDist) / (gMaxDist - gMinDist));
+	//return pow(2, round(lerp(gMaxTess, gMinTess, s)));    //四舍五入到接近的Tess（整数），使用整数更能表达出LOD层级的变化
 }
 
 // Returns true if the box is completely behind (in negative half space) of plane.
@@ -216,7 +221,7 @@ struct HullOut
 };
 
 [domain("quad")]
-[partitioning("fractional_even")]
+[partitioning("fractional_even")]     //使用分数镶嵌模式使LOD层级显得更加柔和
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("ConstantHS")]

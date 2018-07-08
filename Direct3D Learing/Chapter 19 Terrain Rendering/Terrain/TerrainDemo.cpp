@@ -141,6 +141,7 @@ void TerrainApp::OnResize()
 
 void TerrainApp::UpdateScene(float dt)
 {
+	XMFLOAT3 tempCamPos = mCam.GetPosition();
 	//
 	// Control the camera.
 	//
@@ -170,7 +171,11 @@ void TerrainApp::UpdateScene(float dt)
 	if( mWalkCamMode )
 	{
 		XMFLOAT3 camPos = mCam.GetPosition();
+		XMVECTOR moveLength = XMLoadFloat3(&XMFLOAT3(camPos.x - tempCamPos.x, camPos.y - tempCamPos.y, camPos.z - tempCamPos.z));
+		//float moveDistance = XMVectorGetX(XMVector3Length(moveLength));
+		
 		float y = mTerrain.GetHeight(camPos.x, camPos.z);
+		//XMFLOAT3 newCamPos(camPos.x, y + 2.0f, camPos.z);
 		mCam.SetPosition(camPos.x, y + 2.0f, camPos.z);
 	}
 
